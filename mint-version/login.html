@@ -3,54 +3,350 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Login Mint | Hexindo Fleet</title>
-    <script>if (localStorage.getItem('isLoggedIn') === 'true') window.location.replace('index.html');</script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>Mint Jelly OS | Hexindo Fleet</title>
+    <link rel="manifest" href="/manifest.json">
+    
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
     <style>
-        body { background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%); font-family: 'Rajdhani', sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 32px; padding: 2.5rem; width: 100%; max-width: 400px; }
-        .input-mint { width: 100%; padding: 16px; border-radius: 16px; border: 2px solid transparent; background: rgba(255, 255, 255, 0.6); font-family: 'JetBrains Mono', monospace; font-weight: 700; outline: none; transition: 0.3s; }
-        .input-mint:focus { border-color: #87cf3a; background: white; }
-        .btn-mint { width: 100%; padding: 16px; border-radius: 16px; background: #87cf3a; color: white; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
+        :root {
+            --mint-jelly: #10b981;
+            --mint-dark: #064e3b;
+            --glass: rgba(255, 255, 255, 0.8);
+            --transition-ultra: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: #f0fdf4;
+            height: 100vh; width: 100vw;
+            overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* --- HYPER SMOOTH SPLASH SCREEN --- */
+        #splash-overlay {
+            position: fixed; inset: 0;
+            background: #f0fdf4;
+            z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.8s ease, transform 1s cubic-bezier(0.7, 0, 0.3, 1), clip-path 1.2s cubic-bezier(0.7, 0, 0.3, 1);
+            clip-path: circle(150% at 50% 50%);
+        }
+
+        #splash-overlay.exit {
+            opacity: 0; transform: scale(1.2); clip-path: circle(0% at 50% 50%); pointer-events: none;
+        }
+
+        .loader-bar {
+            width: 240px; height: 4px; background: rgba(16, 185, 129, 0.1);
+            border-radius: 10px; overflow: hidden; position: relative; margin-top: 2rem;
+        }
+
+        #loader-fill {
+            position: absolute; left: 0; top: 0; height: 100%; width: 0%; 
+            background: var(--mint-jelly); box-shadow: 0 0 15px var(--mint-jelly);
+            transition: width 0.4s cubic-bezier(0.1, 0.7, 1, 0.1);
+        }
+
+        /* --- TERMINAL UI --- */
+        #bubble-canvas { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+
+        #scaler-context {
+            position: relative; z-index: 10; width: 420px;
+            will-change: transform; transform-origin: center center;
+            opacity: 0; transform: scale(0.9);
+            transition: all 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #scaler-context.reveal { opacity: 1; transform: scale(var(--current-scale, 1)); }
+
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border: 2px solid white; border-radius: 50px; padding: 3.5rem 2.5rem;
+            box-shadow: 0 40px 80px -20px rgba(6, 78, 59, 0.15);
+        }
+
+        .input-mecha {
+            width: 100%; padding: 1.2rem 1.2rem 1.2rem 3.5rem;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid transparent; border-radius: 24px;
+            font-family: 'JetBrains Mono', monospace; font-size: 14px;
+            transition: var(--transition-ultra); color: #064e3b;
+        }
+        .input-mecha:focus { border-color: var(--mint-jelly); box-shadow: 0 0 25px rgba(16, 185, 129, 0.3); outline: none; }
+
+        .btn-mint {
+            width: 100%; padding: 1.2rem;
+            background: #064e3b; color: white;
+            border-radius: 24px; font-weight: 700;
+            letter-spacing: 2px; text-transform: uppercase;
+            transition: var(--transition-ultra);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            border: none; cursor: pointer;
+        }
+        .btn-mint:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        .expand-wrapper {
+            display: grid; grid-template-rows: 0fr;
+            transition: grid-template-rows 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            overflow: hidden;
+        }
+        .expand-wrapper.open { grid-template-rows: 1fr; margin-bottom: 1rem; }
+        .expand-content { min-height: 0; opacity: 0; transition: 0.4s; }
+        .expand-wrapper.open .expand-content { opacity: 1; }
+        
+        #statusMsg { font-size: 10px; font-weight: bold; margin-top: 1rem; text-align: center; font-family: 'JetBrains Mono'; }
     </style>
 </head>
 <body>
-    <div class="glass-panel">
-        <div class="text-center mb-8"><h1 class="text-2xl font-bold text-slate-700">HEXINDO <span class="text-green-500">MINT</span></h1></div>
-        <form id="loginForm" class="space-y-4">
-            <input type="text" id="nik" class="input-mint uppercase" placeholder="NIK ID" required>
-            <input type="password" id="password" class="input-mint" placeholder="PASSWORD" required>
-            <button type="submit" id="btnSubmit" class="btn-mint">Access Terminal</button>
-        </form>
-        <p id="errorMsg" class="text-center text-red-500 text-xs font-bold mt-4 hidden"></p>
+
+    <div id="splash-overlay">
+        <div class="flex flex-col items-center">
+            <div class="w-24 h-24 bg-white rounded-[2.5rem] shadow-xl flex items-center justify-center mb-6 animate-bounce">
+                <i class="fas fa-leaf text-5xl text-emerald-500"></i>
+            </div>
+            <h1 class="text-3xl font-black text-emerald-950 italic tracking-tighter">HEXINDO <span class="text-emerald-500">MINT</span></h1>
+            <p class="text-[10px] font-mono font-bold text-emerald-800/40 tracking-[0.5em] mt-2 uppercase">Initialising Core_System...</p>
+            <div class="loader-bar"><div id="loader-fill"></div></div>
+        </div>
     </div>
+
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="scaler-context">
+        <div class="glass-panel" id="loginCard">
+            <div class="flex flex-col items-center mb-8">
+                <div id="iconBox" class="p-5 bg-white rounded-[2.2rem] shadow-sm mb-5 transition-transform duration-700">
+                    <i id="mainIcon" class="fas fa-shield-halved text-4xl text-emerald-500"></i>
+                </div>
+                <h1 class="text-3xl font-black text-emerald-950 tracking-tighter italic uppercase leading-none">MINT<span class="text-emerald-500">PORTAL</span></h1>
+                <p id="subTitle" class="text-[10px] font-bold text-emerald-800/40 tracking-[0.5em] mt-3 uppercase font-mono transition-all">SECURE TERMINAL ACCESS</p>
+            </div>
+
+            <form id="authForm">
+                <div class="relative mb-4">
+                    <input type="text" id="nikInput" class="input-mecha uppercase" placeholder="NIK IDENTITY" required autocomplete="off">
+                    <i class="fas fa-id-card absolute left-6 top-1/2 -translate-y-1/2 text-emerald-300"></i>
+                </div>
+
+                <div id="nameWrapper" class="expand-wrapper">
+                    <div class="expand-content relative">
+                        <input type="text" id="nameInput" class="input-mecha uppercase" placeholder="OPERATOR NAME">
+                        <i class="fas fa-user-circle absolute left-6 top-1/2 -translate-y-1/2 text-emerald-300"></i>
+                    </div>
+                </div>
+
+                <div class="relative mb-6">
+                    <input type="password" id="passInput" class="input-mecha" placeholder="ACCESS KEY" required>
+                    <i class="fas fa-fingerprint absolute left-6 top-1/2 -translate-y-1/2 text-emerald-300"></i>
+                </div>
+                
+                <button type="submit" id="btnSubmit" class="btn-mint">
+                    <span id="btnText">BOOT SYSTEM</span>
+                    <i class="fas fa-bolt-lightning"></i>
+                </button>
+                
+                <div id="statusMsg" class="text-emerald-500/0 transition-opacity duration-300">READY</div>
+            </form>
+
+            <div class="mt-8 text-center" onclick="App.toggleMode()">
+                <p id="switchText" class="text-[11px] font-bold text-emerald-800/60 uppercase tracking-widest cursor-pointer hover:text-emerald-500 transition-colors">
+                    New Personnel? <span class="text-emerald-500 underline">Register NIK</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const CONFIG = { SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co", SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E" };
-        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
-        if(localStorage.getItem('userNIK')) document.getElementById('nik').value = localStorage.getItem('userNIK');
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
 
-        document.getElementById('loginForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('btnSubmit'); const msg = document.getElementById('errorMsg');
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; btn.disabled = true; msg.classList.add('hidden');
-            try {
-                const { data: user, error } = await sb.from('users').select('*').eq('nik', document.getElementById('nik').value.toUpperCase().trim()).single();
-                if (error || !user) throw new Error("NIK not found");
-                if (user.password !== document.getElementById('password').value) throw new Error("Invalid Password");
-                if (user.status !== 'active') throw new Error("Account Suspended");
+        const Engine = {
+            bubbles: [],
+            targetScale: 1, currentScale: 1,
+            init() {
+                const canvas = document.getElementById('bubble-canvas');
+                const ctx = canvas.getContext('2d');
+                const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+                window.addEventListener('resize', resize); resize();
 
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('userNIK', user.nik);
-                localStorage.setItem('userName', user.full_name);
-                localStorage.setItem('appTheme', 'mint'); // Force Mint Theme
-                window.location.replace('index.html'); // Redirect Relatif
-            } catch (err) {
-                msg.innerText = err.message; msg.classList.remove('hidden'); btn.innerHTML = `Access Terminal`; btn.disabled = false;
+                for(let i=0; i<40; i++) this.bubbles.push({
+                    x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight,
+                    r: Math.random()*15+5, s: Math.random()*0.5+0.2, o: Math.random()*0.3
+                });
+
+                const render = () => {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    this.bubbles.forEach(b => {
+                        b.y -= b.s; if(b.y < -20) b.y = canvas.height+20;
+                        ctx.fillStyle = `rgba(16, 185, 129, ${b.o})`;
+                        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+                    });
+
+                    const sw = (window.innerWidth-40)/420;
+                    const sh = (window.innerHeight-40)/750;
+                    this.targetScale = Math.min(sw, sh, 1.1);
+                    this.currentScale += (this.targetScale - this.currentScale) * 0.1;
+                    document.documentElement.style.setProperty('--current-scale', this.currentScale);
+                    document.getElementById('scaler-context').style.transform = `scale(${this.currentScale}) translateZ(0)`;
+
+                    requestAnimationFrame(render);
+                };
+                render();
             }
         };
+
+        const Splash = {
+            async start() {
+                const fill = document.getElementById('loader-fill');
+                const overlay = document.getElementById('splash-overlay');
+                const terminal = document.getElementById('scaler-context');
+
+                for(let p=0; p<=100; p += Math.random()*15) {
+                    fill.style.width = `${Math.min(p, 100)}%`;
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                fill.style.width = '100%';
+                setTimeout(() => {
+                    overlay.classList.add('exit');
+                    terminal.classList.add('reveal');
+                }, 400);
+            }
+        };
+
+        const App = {
+            sb: supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY),
+            isRegisterMode: false,
+
+            init() {
+                localStorage.clear();
+                Engine.init();
+                Splash.start();
+                document.getElementById('authForm').onsubmit = (e) => this.handleAuth(e);
+            },
+
+            toggleMode() {
+                this.isRegisterMode = !this.isRegisterMode;
+                const nameWrapper = document.getElementById('nameWrapper');
+                const btnText = document.getElementById('btnText');
+                const switchText = document.getElementById('switchText');
+                const iconBox = document.getElementById('iconBox');
+                const mainIcon = document.getElementById('mainIcon');
+                const subTitle = document.getElementById('subTitle');
+
+                iconBox.style.transform = this.isRegisterMode ? 'rotate(360deg)' : 'rotate(0deg)';
+                
+                if (this.isRegisterMode) {
+                    nameWrapper.classList.add('open');
+                    document.getElementById('nameInput').required = true;
+                    btnText.innerText = "REQUEST ACCESS";
+                    switchText.innerHTML = "Existing Member? <span>Login NIK</span>";
+                    mainIcon.className = "fas fa-user-plus text-4xl text-emerald-500";
+                    subTitle.innerText = "IDENTITY REGISTRATION";
+                } else {
+                    nameWrapper.classList.remove('open');
+                    document.getElementById('nameInput').required = false;
+                    btnText.innerText = "BOOT SYSTEM";
+                    switchText.innerHTML = "New Personnel? <span>Register NIK</span>";
+                    mainIcon.className = "fas fa-shield-halved text-4xl text-emerald-500";
+                    subTitle.innerText = "SECURE TERMINAL ACCESS";
+                }
+            },
+
+            showStatus(msg, type='error') {
+                const el = document.getElementById('statusMsg');
+                el.innerText = msg;
+                el.className = type === 'error' ? 'text-red-500 font-bold uppercase tracking-widest' : 'text-emerald-600 font-bold uppercase tracking-widest';
+                el.style.opacity = '1';
+                if(type === 'error') {
+                    const card = document.getElementById('loginCard');
+                    card.style.transform = "translateX(5px)";
+                    setTimeout(() => card.style.transform = "translateX(-5px)", 100);
+                    setTimeout(() => card.style.transform = "translateX(0)", 300);
+                }
+            },
+
+            async handleAuth(e) {
+                e.preventDefault();
+                const btn = document.getElementById('btnSubmit');
+                const nik = document.getElementById('nikInput').value.toUpperCase().trim();
+                const pass = document.getElementById('passInput').value.trim();
+                
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-circle-notch animate-spin"></i> PROCESSING`;
+                this.showStatus("ESTABLISHING CONNECTION...", "normal");
+
+                try {
+                    await new Promise(r => setTimeout(r, 1000));
+
+                    if (this.isRegisterMode) {
+                        const name = document.getElementById('nameInput').value.toUpperCase().trim();
+                        const { data: existing } = await this.sb.from('users').select('nik').eq('nik', nik).single();
+                        if (existing) throw new Error("NIK ALREADY REGISTERED");
+
+                        const { error } = await this.sb.from('users').insert([{
+                            nik: nik, full_name: name, password: pass, role: 'technician', status: 'pending'
+                        }]);
+                        if (error) throw error;
+
+                        this.showStatus("REGISTRATION SENT. AWAITING APPROVAL.", "success");
+                        alert("✅ Registration Successful!\nPlease wait for Admin Approval.");
+                        this.toggleMode();
+
+                    } else {
+                        const { data, error } = await this.sb.from('users').select('*').eq('nik', nik).single();
+
+                        if (error || !data) throw new Error("NIK NOT FOUND");
+                        if (data.password !== pass) throw new Error("INVALID PASSWORD");
+                        if (data.status === 'pending') throw new Error("ACCOUNT PENDING APPROVAL");
+                        if (data.status === 'suspended') throw new Error("ACCOUNT SUSPENDED");
+
+                        // --- SUKSES LOGIN ---
+                        this.showStatus("ACCESS GRANTED. REDIRECTING...", "success");
+                        
+                        // [FIX] WAJIB SET isLoggedIn AGAR TIDAK DITENDANG index.html
+                        localStorage.setItem('isLoggedIn', 'true'); // <--- INI KUNCINYA
+                        localStorage.setItem('userNIK', data.nik);
+                        localStorage.setItem('userName', data.full_name);
+                        
+                        setTimeout(() => {
+                            window.location.replace('index.html');
+                        }, 1000);
+                        return;
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    this.showStatus(err.message || "CONNECTION ERROR", "error");
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = `<span>${this.isRegisterMode ? 'REQUEST ACCESS' : 'BOOT SYSTEM'}</span> <i class="fas fa-bolt-lightning"></i>`;
+            }
+        };
+
+        window.onload = () => App.init();
     </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
 </body>
 </html>
