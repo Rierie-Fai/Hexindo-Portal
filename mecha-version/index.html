@@ -8,14 +8,14 @@
     <meta name="theme-color" content="#f1f5f9">
 
     <script>
+        // Cek Login
         if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('/mecha-version/login.html'); }
     </script>
 
-    <script src="/js/tailwindcss.js"></script>
-    <script src="/js/supabase-js@2.js"></script>
-    <link href="/css/all.min.css" rel="stylesheet">
-    <link href="/css/rajdhani.css" rel="stylesheet">
-    <link href="/css/jetbrain.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -26,7 +26,6 @@
             --text-primary: #0f172a;
             --text-secondary: #475569;
             --accent-color: #f59e0b;
-            /* ULTIMATE SMOOTH BEZIER (Seperti iOS/Samsung 120Hz) */
             --ease-fluid: cubic-bezier(0.19, 1, 0.22, 1); 
         }
 
@@ -41,30 +40,24 @@
             background-size: 40px 40px;
             min-height: 100vh; color: var(--text-primary); margin: 0; overflow-x: hidden;
             display: flex; justify-content: center; align-items: flex-start;
-            /* Hilangkan highlight tap biru di Android */
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* MOMENTUM SCROLLING (Wajib untuk 120fps Scroll feel) */
+        /* MOMENTUM SCROLLING */
         .overflow-y-auto {
-            -webkit-overflow-scrolling: touch; /* Kunci scrolling licin di iOS/Mobile */
+            -webkit-overflow-scrolling: touch;
             scroll-behavior: smooth;
-            overscroll-behavior-y: contain; /* Mencegah scroll body ikut bergerak */
+            overscroll-behavior-y: contain;
         }
-
-        /* Sembunyikan Scrollbar tapi tetap bisa scroll */
         .overflow-y-auto::-webkit-scrollbar { width: 4px; }
         .overflow-y-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
         .overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
 
         #mecha-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; }
 
-        /* --- GPU ACCELERATION & ANIMATIONS --- */
+        /* --- GPU ACCELERATION --- */
         .gpu-accel, #scaler-context, .drawer, .menu-card, #target-reticle {
-            transform: translate3d(0,0,0); /* Force GPU Layer */
-            backface-visibility: hidden;
-            perspective: 1000px;
-            will-change: transform; /* Beritahu browser elemen ini akan gerak */
+            transform: translate3d(0,0,0); backface-visibility: hidden; perspective: 1000px; will-change: transform;
         }
 
         #scaler-context { width: var(--base-width); transform-origin: top center; transition: transform 0.2s ease-out, opacity 0.8s ease; flex-shrink: 0; padding: 2rem; position: relative; z-index: 10; }
@@ -84,20 +77,17 @@
         .marquee-text { display: inline-block; animation: marquee 25s linear infinite; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text-secondary); }
         @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
-        /* --- DRAWERS (Optimized for 120fps) --- */
+        /* --- DRAWERS --- */
         .drawer {
             position: fixed; top: 0; height: 100%; width: 360px; max-width: 88%;
             background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(20px);
             z-index: 50; display: flex; flex-direction: column;
-            transition: transform 0.6s var(--ease-fluid) !important; /* Super Smooth Transition */
+            transition: transform 0.6s var(--ease-fluid) !important;
             box-shadow: 0 0 40px rgba(0,0,0,0.15);
         }
         
-        /* Initial States (Off-screen) */
         #notifDrawer { right: 0; transform: translate3d(100%, 0, 0); border-left: 1px solid #e2e8f0; }
         #chatDrawer { left: 0; transform: translate3d(-100%, 0, 0); border-right: 1px solid #e2e8f0; }
-        
-        /* Active State */
         .drawer.open { transform: translate3d(0, 0, 0) !important; }
         
         #drawerOverlay {
@@ -114,8 +104,7 @@
             transition: border-color 0.3s, opacity 0.3s;
             border: 1px solid rgba(245, 158, 11, 0.6);
             box-shadow: 0 0 15px rgba(245, 158, 11, 0.2), inset 0 0 10px rgba(245, 158, 11, 0.1);
-            border-radius: 12px;
-            opacity: 0;
+            border-radius: 12px; opacity: 0;
         }
         #target-reticle.active { opacity: 1; }
 
@@ -137,7 +126,6 @@
         .locked .corner { border-color: #ef4444; }
         .locked .scan-label { color: #fff; background: #ef4444; }
 
-        /* Multi Scan Effect */
         .temp-reticle {
             position: absolute; z-index: 50; pointer-events: none;
             border: 1px dashed rgba(16, 185, 129, 0.6);
@@ -323,7 +311,7 @@
             TARGET_WIDTH: 720
         };
 
-        // --- PARTICLE ENGINE (Delta Time Fixed for 120fps) ---
+        // --- PARTICLE ENGINE ---
         class ParticleEngine {
             constructor() {
                 this.canvas = document.getElementById('mecha-canvas');
@@ -349,7 +337,7 @@
                 this.size = Math.random() * 2 + 1; this.speedY = (Math.random() * 0.5 + 0.2); this.opacity = Math.random() * 0.4 + 0.1; 
             }
             update(dt) {
-                this.y -= this.speedY * dt; // Flow Upward for 120fps feel
+                this.y -= this.speedY * dt; 
                 if (this.y < 0) { this.y = this.canvas.height; this.x = Math.random() * this.canvas.width; }
             }
             draw(ctx) {
@@ -379,7 +367,7 @@
                 this.initChatSystem();
             },
 
-            // --- SCANNER V3 (Fixed Coordinates) ---
+            // --- SCANNER V3 ---
             initScanner() {
                 const reticle = document.getElementById('target-reticle');
                 const label = document.querySelector('.scan-label');
@@ -387,14 +375,13 @@
                 let curr = { x: 0, y: 0, w: 0, h: 0 };
                 let target = { x: 0, y: 0, w: 0, h: 0 };
                 let isLocked = false;
-
                 const lerp = (start, end, factor) => start + (end - start) * factor;
 
                 const animateReticle = () => {
                     if (!isLocked) {
                         curr.x = lerp(curr.x, target.x, 0.15); curr.y = lerp(curr.y, target.y, 0.15);
                         curr.w = lerp(curr.w, target.w, 0.15); curr.h = lerp(curr.h, target.h, 0.15);
-                        reticle.style.transform = `translate3d(${curr.x}px, ${curr.y}px, 0)`; // GPU Force
+                        reticle.style.transform = `translate3d(${curr.x}px, ${curr.y}px, 0)`; 
                         reticle.style.width = `${curr.w}px`; reticle.style.height = `${curr.h}px`;
                     }
                     requestAnimationFrame(animateReticle);
@@ -430,10 +417,8 @@
                         const pad = 12;
                         target.x = coords.x - (pad/2); target.y = coords.y - (pad/2);
                         target.w = coords.w + pad; target.h = coords.h + pad;
-
                         reticle.classList.add('active'); reticle.classList.remove('locked');
                         label.innerText = "TRACKING..."; isLocked = false;
-                        
                         setTimeout(() => { reticle.classList.add('locked'); label.innerText = "LOCKED"; }, 500);
                         setTimeout(() => { reticle.classList.remove('active'); }, 2500);
                     }
@@ -539,18 +524,27 @@
 
             scrollToBottom() { const c = document.getElementById('chatMessages'); c.scrollTop = c.scrollHeight; },
             showChatBadge() { const b = document.getElementById('chatBadge'); if(b) { b.classList.remove('hidden'); b.classList.add('animate-bounce'); } },
-
             toggleDrawer(id) {
                 const d = document.getElementById(id), o = document.getElementById('drawerOverlay');
                 const open = d.classList.contains('open'); this.closeAllDrawers();
                 if (!open) { d.classList.add('open'); o.classList.add('visible'); if(id === 'chatDrawer') { document.getElementById('chatBadge').classList.add('hidden'); if(!this.activeChat) this.loadContacts(); } }
             },
             closeAllDrawers() { document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open')); document.getElementById('drawerOverlay').classList.remove('visible'); },
-            
             updateTime() { const now = new Date(); document.getElementById('liveTime').innerText = now.toLocaleTimeString('en-GB', { hour12: false }); document.getElementById('liveDate').innerText = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(); },
             runAutoScale() { const s = document.getElementById('scaler-context'); if(!s) return; const w = window.innerWidth; const r = w < CONFIG.TARGET_WIDTH ? w/CONFIG.TARGET_WIDTH : 1; s.style.transform = `scale(${r})`; s.style.marginBottom = w < CONFIG.TARGET_WIDTH ? `-${(1-r)*s.offsetHeight}px` : "0px"; },
             async hideSplash() { const s = document.getElementById('splash-screen'), c = document.getElementById('scaler-context'), p = document.getElementById('splashProgress'); if (p) p.style.width = "100%"; await new Promise(r => setTimeout(r, 600)); if (s) s.style.opacity = "0"; setTimeout(() => { if (s) s.style.display = 'none'; if (c) c.classList.remove('opacity-0'); this.runAutoScale(); }, 500); },
-            logout() { if (confirm("Disconnect Current Session?")) { localStorage.clear(); window.location.replace('/mecha-version/login.html'); } },
+            
+            // --- UPDATED LOGOUT FUNCTION ---
+            logout() { 
+                if (confirm("Disconnect Current Session?")) { 
+                    const savedTheme = localStorage.getItem('appTheme');
+                    const savedNik = localStorage.getItem('userNIK');
+                    localStorage.clear(); 
+                    if (savedTheme) localStorage.setItem('appTheme', savedTheme);
+                    if (savedNik) localStorage.setItem('userNIK', savedNik);
+                    window.location.replace('/mecha-version/login.html'); 
+                } 
+            },
 
             async loadNotifications() {
                 const b = document.getElementById('notifBadge'), l = document.getElementById('notifList');
