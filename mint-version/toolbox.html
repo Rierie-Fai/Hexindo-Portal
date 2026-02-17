@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Toolbox Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --mint-primary: #87cf3a;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.75);
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+            --base-width: 720px;
+        }
+
+        /* --- GLOBAL FLUIDITY --- */
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            transform: translateZ(0);
+        }
+
+        #bubble-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; 
+            transition: transform 0.4s var(--ease-out-expo), opacity 0.8s ease;
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10;
+        }
+
+        /* --- JELLY COMPONENTS --- */
+        .glass-panel { 
+            background: var(--mint-glass); 
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 15px 40px -10px rgba(135, 207, 58, 0.15);
+            border-radius: 32px; overflow: hidden;
+            transition: transform 0.3s var(--ease-out-expo);
+        }
+
+        /* --- INPUT MINT --- */
+        .input-mint { 
+            border: 2px solid transparent; border-radius: 20px; font-weight: 600; width: 100%; 
+            padding: 14px 20px; background: rgba(255, 255, 255, 0.6); font-size: 15px;
+            outline: none; transition: 0.3s; color: var(--mint-dark); 
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+        .input-mint:focus { 
+            border-color: var(--mint-primary); background: #ffffff; 
+            box-shadow: 0 0 0 5px rgba(135, 207, 58, 0.15); 
+            transform: translateY(-2px);
+        }
+
+        .label-mint {
+            font-size: 11px; font-weight: 700; color: #64748b; 
+            text-transform: uppercase; display: block; margin-bottom: 6px; margin-left: 12px;
+            font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
+        }
+
+        /* --- BUTTON MINT --- */
+        .btn-mint {
+            display: inline-flex; align-items: center; justify-content: center; 
+            cursor: pointer; border-radius: 20px; transition: 0.3s;
+            font-weight: 700; text-transform: uppercase;
+        }
+        .btn-mint:active { transform: scale(0.95); }
+
+        /* --- TABLE --- */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { 
+            background: rgba(248, 250, 252, 0.9); font-size: 11px; text-transform: uppercase; 
+            color: #64748b; padding: 14px; font-weight: 800; text-align: center; 
+            position: sticky; top: 0; z-index: 20; border-bottom: 2px solid #e2e8f0;
+            backdrop-filter: blur(10px);
+        }
+        td { 
+            border-bottom: 1px solid #f1f5f9; padding: 12px 8px; font-size: 14px; 
+            vertical-align: middle; color: #334155; font-weight: 600;
+        }
+
+        /* Row Highlights */
+        .row-baik { background-color: rgba(16, 185, 129, 0.1) !important; border-left: 4px solid #10b981; }
+        .row-rusak { background-color: rgba(245, 158, 11, 0.1) !important; border-left: 4px solid #f59e0b; }
+        .row-hilang { background-color: rgba(239, 68, 68, 0.1) !important; border-left: 4px solid #ef4444; }
+
+        /* JELLY RADIO */
+        input[type="radio"] { 
+            appearance: none; width: 22px; height: 22px; border: 2px solid #cbd5e1; 
+            border-radius: 50%; cursor: pointer; transition: 0.4s var(--ease-out-expo); 
+            position: relative; background: white;
+        }
+        input[type="radio"]:checked { border-color: transparent; transform: scale(1.15); }
+        input[type="radio"][value="B"]:checked { background: #10b981; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4); }
+        input[type="radio"][value="R"]:checked { background: #f59e0b; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.4); }
+        input[type="radio"][value="H"]:checked { background: #ef4444; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4); }
+        input[type="radio"]:checked::after {
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 8px; height: 8px; background: white; border-radius: 50%;
+        }
+
+        /* --- FILTER PILLS --- */
+        .filter-pill {
+            padding: 6px 14px; border-radius: 12px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+            background: #f1f5f9; color: #94a3b8; cursor: pointer; transition: 0.3s;
+        }
+        .filter-pill.active { background: var(--mint-primary); color: white; box-shadow: 0 4px 10px rgba(135, 207, 58, 0.3); }
+
+        /* --- DRAWERS --- */
+        #drawerOverlay { position: fixed; inset: 0; background: rgba(47, 52, 63, 0.3); z-index: 50; opacity: 0; pointer-events: none; transition: 0.3s; backdrop-filter: blur(4px); }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+        
+        #sideDrawer { 
+            position: fixed; top: 0; right: 0; height: 100%; width: 340px; z-index: 51; 
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-left: 1px solid rgba(255,255,255,0.5);
+            transform: translateX(100%); transition: transform 0.5s var(--ease-out-expo);
+            display: flex; flex-direction: column; padding: 1.5rem; box-shadow: -10px 0 40px rgba(0,0,0,0.1); border-radius: 32px 0 0 32px;
+        }
+        #sideDrawer.open { transform: translateX(0); }
+
+        #bottomDrawer {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 51;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255,255,255,0.5); border-radius: 32px 32px 0 0;
+            transform: translateY(100%); transition: transform 0.5s var(--ease-out-expo);
+            padding: 1.5rem; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+        }
+        #bottomDrawer.open { transform: translateY(0); }
+
+        /* --- FAB --- */
+        .fab {
+            position: fixed; right: 24px; bottom: 24px; width: 64px; height: 64px;
+            background: var(--mint-primary); color: white; border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px rgba(135, 207, 58, 0.4); z-index: 40;
+            transition: all 0.4s var(--ease-out-expo); cursor: pointer; transform: rotate(0deg);
+        }
+        .fab:hover { transform: rotate(90deg) scale(1.1); box-shadow: 0 15px 40px rgba(135, 207, 58, 0.6); }
+        .fab:active { transform: scale(0.9); }
+
+        /* --- LOADER --- */
+        #splash-screen { 
+            position: fixed; inset: 0; background: #f0fdf4; z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 0.5s;
+        }
+        .mint-spinner { width: 50px; height: 50px; border-radius: 50%; border: 5px solid #dcfce7; border-top-color: var(--mint-primary); animation: spin 0.8s infinite linear; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <p class="mt-4 text-xs font-bold text-green-600 uppercase tracking-widest">Loading Toolbox...</p>
+    </div>
+
+    <div id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
+    <aside id="sideDrawer">
+        <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+            <span class="text-xs font-bold text-slate-400 font-mono uppercase tracking-widest">Action Center</span>
+            <button onclick="closeAllDrawers()" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-red-500 shadow-sm"><i class="fas fa-times"></i></button>
+        </div>
+        
+        <div class="space-y-4 mb-8">
+            <div class="p-4 rounded-2xl bg-green-50 border border-green-100 flex justify-between items-center shadow-sm">
+                <span class="text-xs font-bold text-green-600 uppercase"><i class="fas fa-check-circle mr-2"></i>GOOD (B)</span>
+                <span id="countB" class="text-2xl font-bold text-green-600 font-mono">0</span>
+            </div>
+            <div class="p-4 rounded-2xl bg-amber-50 border border-amber-100 flex justify-between items-center shadow-sm">
+                <span class="text-xs font-bold text-amber-600 uppercase"><i class="fas fa-exclamation-triangle mr-2"></i>BROKEN (R)</span>
+                <span id="countR" class="text-2xl font-bold text-amber-600 font-mono">0</span>
+            </div>
+            <div class="p-4 rounded-2xl bg-red-50 border border-red-100 flex justify-between items-center shadow-sm">
+                <span class="text-xs font-bold text-red-600 uppercase"><i class="fas fa-times-circle mr-2"></i>LOST (H)</span>
+                <span id="countH" class="text-2xl font-bold text-red-600 font-mono">0</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 mt-auto">
+            <button onclick="prosesSimpan()" class="btn-mint bg-blue-500 text-white py-4 shadow-lg shadow-blue-500/30 hover:bg-blue-600">
+                <i class="fas fa-cloud-upload-alt mr-2"></i> SYNC TO CLOUD
+            </button>
+            <button onclick="checkAllBaik()" class="btn-mint bg-green-500 text-white py-4 shadow-lg shadow-green-500/30 hover:bg-green-600">
+                <i class="fas fa-check-double mr-2"></i> SET ALL GOOD
+            </button>
+            <button onclick="resetForm()" class="btn-mint bg-slate-100 text-slate-500 py-4 hover:bg-slate-200">
+                <i class="fas fa-undo mr-2"></i> RESET FORM
+            </button>
+        </div>
+    </aside>
+
+    <aside id="bottomDrawer">
+        <div class="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-widest">Inspection Logs</h3>
+            <button onclick="fetchHistory()" class="text-green-500 text-[10px] font-bold uppercase hover:bg-green-50 px-3 py-1 rounded-lg"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        </div>
+        <div class="overflow-y-auto flex-1">
+            <table class="w-full">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="text-left pl-4 py-3 text-[10px] text-slate-500 rounded-l-xl">DATE CHECKED</th>
+                        <th class="text-right pr-4 py-3 text-[10px] text-slate-500 rounded-r-xl">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="histBody"></tbody>
+            </table>
+        </div>
+    </aside>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <header class="glass-panel p-6 flex justify-between items-center no-print bg-[#2f343f] !text-white border-none shadow-xl">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg hover:scale-110 transition-transform">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-tight">TOOLBOX <span class="text-green-400">PRO</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <p id="roleText" class="text-[10px] font-mono text-slate-400 tracking-widest uppercase">System Online</p>
+                    </div>
+                </div>
+            </div>
+            <div id="currentMonthBadge" class="px-4 py-2 bg-slate-700 rounded-xl text-xs font-bold text-slate-300 uppercase border border-slate-600 shadow-inner">
+                LOADING...
+            </div>
+        </header>
+
+        <div class="glass-panel p-8 mb-6">
+            <input type="hidden" id="editingId">
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div>
+                    <label class="label-mint">ASSET ID</label>
+                    <input type="text" id="asset" class="input-mint bg-slate-50 font-mono font-bold text-slate-500" readonly>
+                </div>
+                <div>
+                    <label class="label-mint">DATE</label>
+                    <input type="date" id="tgl" onchange="updateMonthBadge()" class="input-mint">
+                </div>
+            </div>
+            <div>
+                <label class="label-mint">TECHNICIAN</label>
+                <input type="text" id="pic" class="input-mint bg-slate-50 text-slate-600 font-bold uppercase" readonly placeholder="Fetching Name...">
+            </div>
+        </div>
+
+        <div class="glass-panel p-0 overflow-hidden pb-4 bg-white/90">
+            <div class="p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+                <span class="text-xs font-bold text-slate-600 uppercase tracking-wider"><i class="fas fa-list-check mr-2 text-green-500"></i>Checklist</span>
+                <div class="flex gap-2">
+                    <div onclick="applyFilter('ALL')" class="filter-pill active" id="f-ALL">All</div>
+                    <div onclick="applyFilter('B')" class="filter-pill" id="f-B">Good</div>
+                    <div onclick="applyFilter('R')" class="filter-pill" id="f-R">Bad</div>
+                    <div onclick="applyFilter('H')" class="filter-pill" id="f-H">Lost</div>
+                </div>
+            </div>
+            
+            <div class="overflow-y-auto max-h-[500px]">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th width="50" class="text-slate-400">NO</th>
+                            <th class="text-left text-slate-600 pl-4">ITEM DESCRIPTION</th>
+                            <th width="60" class="text-green-500">GOOD</th>
+                            <th width="60" class="text-amber-500">BAD</th>
+                            <th width="60" class="text-red-500">LOST</th>
+                        </tr>
+                    </thead>
+                    <tbody id="toolTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex justify-center mt-8 pb-24">
+            <button onclick="openHistory()" class="btn-mint bg-white text-slate-500 border border-slate-200 px-8 py-3 rounded-full shadow-sm hover:text-green-600 hover:border-green-300 hover:shadow-lg hover:-translate-y-1">
+                <span class="text-xs font-bold uppercase tracking-widest">View Archive ↓</span>
+            </button>
+        </div>
+    </div>
+
+    <div onclick="toggleDrawer()" class="fab">
+        <i class="fas fa-layer-group text-2xl"></i>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+        const sbClient = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+
+        const listAlat = ["Adjustable wrench L=12\"", "Adjustable wrench pipe L=10\"", "Allen key 12mm", "Allen key 14mm", "Allen key 17mm", "Allen key set 2-10mm", "Brush steel W=30mm", "Catridge belt wrench 125mm", "Chisel plate W=11 L=140mm", "Combination wrench 24mm", "Combination wrench 27mm", "Combination wrench 30mm", "Combination wrench 32mm", "Combination wrench 36mm", "Combination wrench 41mm", "Extention socket 1/2\" L=10\"", "Extention socket 1/2\" L=5\"", "Extention socket 3/4\" L=18\"", "Extention socket 3/4\" L=8\"", "Extention socket 1/2\" U-joint", "Feeler gauge set", "Files set (5 pcs) 150mm", "Files plate type 250mm", "Files round type 250mm", "Haksaw iron & blade", "Half moon wrench 14x17", "Half moon wrench 19x22", "Hammer besi 0.5kg", "Hammer karet 0.5kg", "Hammer plastik 0.5kg", "Handle socket T 1/2\"", "Handle socket T 3/4\"", "Handle rachet 1/2\"", "Handle rachet 3/4\"", "Magnetic stick L=50cm", "Multitester CD 800", "Open end 6x7", "Open end 8x9", "Open end 10x11", "Open end 12x13", "Open end 14x15", "Open end 16x17", "Open end 18x19", "Open end 20x22", "Open end 24x26", "Open end 36x41", "Paint brush", "Pliers combination 200mm", "Pliers side cutting 200mm", "Pliers water pump", "Pliers viece grip", "Pliers snap ring (in)", "Pliers snap ring (out)", "Pry bar L=40cm", "Punch drift 150mm", "Punch center 130mm", "Ring spanner 6x7", "Ring spanner 8x9", "Ring spanner 10x11", "Ring spanner 12x13", "Ring spanner 14x15", "Ring spanner 16x17", "Ring spanner 18x19", "Ring spanner 20x22", "Ring spanner 24x26", "Scale meter roll 2.5m", "Scrape blade W=25mm", "Screw drive plus 75mm", "Screw drive plus 100mm", "Screw drive plus 125mm", "Screw drive plus 150mm", "Screw drive plate 75mm", "Screw drive plate 100mm", "Screw drive plate 150mm", "Screw drive plate 200mm", "Socket (12) 1/2\" 10mm", "Socket (12) 1/2\" 11mm", "Socket (12) 1/2\" 12mm", "Socket (12) 1/2\" 13mm", "Socket (12) 1/2\" 14mm", "Socket (12) 1/2\" 15mm", "Socket (12) 1/2\" 16mm", "Socket (12) 1/2\" 17mm", "Socket (12) 1/2\" 18mm", "Socket (12) 1/2\" 19mm", "Socket (12) 1/2\" 20mm", "Socket (12) 1/2\" 21mm", "Socket (12) 1/2\" 22mm", "Socket (12) 3/4\" 22mm", "Socket (12) 3/4\" 23mm", "Socket (12) 3/4\" 24mm", "Socket (12) 3/4\" 27mm", "Socket (12) 3/4\" 28mm", "Socket (12) 3/4\" 29mm", "Socket (12) 3/4\" 30mm", "Socket (12) 3/4\" 32mm", "Socket (12) 3/4\" 36mm", "Socket (12) 3/4\" 38mm", "Socket (12) 3/4\" 41mm", "Socket (12) 3/4\" 46mm", "Stop watch digital", "Thermometer 0-200C", "Treeds gauge set", "Tools box 3 step", "Test pen DC", "Vernier caliper 150mm"];
+
+        const userNik = localStorage.getItem('userNIK') || 'UNKNOWN';
+        const userNameCache = localStorage.getItem('userName') || 'TECHNICIAN';
+
+        // --- BUBBLE ENGINE ---
+        const canvas = document.getElementById('bubble-canvas');
+        const ctx = canvas.getContext('2d');
+        let bubbles = [];
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        
+        class Bubble {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 100;
+                this.size = Math.random() * 15 + 5;
+                this.speed = Math.random() * 0.8 + 0.3;
+                this.opacity = Math.random() * 0.3 + 0.1;
+                this.color = Math.random() > 0.5 ? '135, 207, 58' : '74, 222, 128'; 
+            }
+            update() { this.y -= this.speed; if (this.y < -100) this.reset(); }
+            draw() {
+                ctx.fillStyle = `rgba(${this.color}, ${this.opacity})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        function initBubbles() { bubbles = Array.from({length: 50}, () => new Bubble()); }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bubbles.forEach(b => { b.update(); b.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        // --- APP LOGIC ---
+        const App = {
+            async init() {
+                resizeCanvas(); initBubbles(); animate();
+                runAutoScale(); window.addEventListener('resize', runAutoScale);
+
+                this.initTable();
+                document.getElementById('asset').value = userNik;
+                document.getElementById('pic').value = userNameCache.toUpperCase();
+                document.getElementById('tgl').valueAsDate = new Date();
+                updateMonthBadge();
+                
+                await this.syncUserData();
+                
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.opacity = '0';
+                    document.getElementById('scaler-context').classList.remove('opacity-0');
+                    setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500);
+                }, 800);
+            },
+
+            async syncUserData() {
+                try {
+                    const { data, error } = await sbClient.from('users').select('full_name').eq('nik', userNik).single();
+                    if (data && !error) {
+                        document.getElementById('pic').value = data.full_name.toUpperCase();
+                        document.getElementById('roleText').innerText = `NIK: ${userNik} | AUTHENTICATED`;
+                        localStorage.setItem('userName', data.full_name.toUpperCase());
+                    }
+                } catch (e) { console.error(e); }
+            },
+
+            initTable() {
+                document.getElementById('toolTableBody').innerHTML = listAlat.map((name, i) => `
+                    <tr id="row-${i+1}" class="group hover:bg-slate-50 transition-colors">
+                        <td class="text-center text-slate-400 font-mono text-[10px] font-bold">${i + 1}</td>
+                        <td class="pl-4 pr-2 text-slate-700 font-medium text-sm group-hover:text-green-600">${name}</td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="B" onclick="App.updateRowStyle(${i+1}, 'B')"></td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="R" onclick="App.updateRowStyle(${i+1}, 'R')"></td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="H" onclick="App.updateRowStyle(${i+1}, 'H')"></td>
+                    </tr>`).join('');
+            },
+
+            updateRowStyle(idx, status) {
+                const tr = document.getElementById(`row-${idx}`);
+                tr.classList.remove('row-baik', 'row-rusak', 'row-hilang');
+                if (status) tr.classList.add(`row-${status === 'B' ? 'baik' : status === 'R' ? 'rusak' : 'hilang'}`);
+                this.refreshSummary();
+            },
+
+            refreshSummary() {
+                let b=0, r=0, h=0;
+                listAlat.forEach((_, i) => {
+                    const v = document.querySelector(`input[name="t-${i+1}"]:checked`)?.value;
+                    if(v === 'B') b++; else if(v === 'R') r++; else if(v === 'H') h++;
+                });
+                document.getElementById('countB').innerText = b;
+                document.getElementById('countR').innerText = r;
+                document.getElementById('countH').innerText = h;
+            }
+        };
+
+        window.App = App;
+        window.checkAllBaik = () => {
+            listAlat.forEach((_, i) => {
+                const rb = document.querySelector(`input[name="t-${i+1}"][value="B"]`);
+                if(rb) { rb.checked = true; App.updateRowStyle(i+1, 'B'); }
+            });
+            App.refreshSummary();
+        };
+
+        window.applyFilter = (type) => {
+            document.querySelectorAll('.filter-pill').forEach(el => el.classList.remove('active'));
+            document.getElementById(`f-${type}`).classList.add('active');
+            
+            listAlat.forEach((_, i) => {
+                const tr = document.getElementById(`row-${i+1}`);
+                const val = document.querySelector(`input[name="t-${i+1}"]:checked`)?.value;
+                if (type === 'ALL') tr.classList.remove('hidden');
+                else if (type === 'B' && val === 'B') tr.classList.remove('hidden');
+                else if (type === 'R' && val === 'R') tr.classList.remove('hidden');
+                else if (type === 'H' && val === 'H') tr.classList.remove('hidden');
+                else tr.classList.add('hidden');
+            });
+        };
+
+        window.prosesSimpan = async () => {
+            const btn = document.querySelector('button[onclick="prosesSimpan()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> SYNCING...`; btn.disabled = true;
+
+            const vals = listAlat.map((_, i) => document.querySelector(`input[name="t-${i+1}"]:checked`)?.value || null);
+            if(vals.includes(null)) { alert("⚠️ Please check all items."); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+            const payload = { nik: userNik, pic_name: document.getElementById('pic').value, check_date: document.getElementById('tgl').value, branch: "ADARO PROJECT", items_data: vals };
+            const id = document.getElementById('editingId').value;
+            const res = id ? await sbClient.from('toolbox_reports').update(payload).eq('id', id) : await sbClient.from('toolbox_reports').insert([payload]);
+            
+            if(!res.error) { alert("✅ Synced Successfully!"); closeAllDrawers(); fetchHistory(); resetForm(); } 
+            else { alert("Error: " + res.error.message); }
+            btn.innerHTML = originalText; btn.disabled = false;
+        };
+
+        window.fetchHistory = async () => {
+            const { data } = await sbClient.from('toolbox_reports').select('*').eq('nik', userNik).order('check_date', {ascending: false}).limit(10);
+            document.getElementById('histBody').innerHTML = (data || []).map(row => `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="pl-4 py-3 font-mono text-slate-600 text-[11px] font-bold">${new Date(row.check_date).toLocaleDateString()}</td>
+                    <td class="text-right pr-4 py-3">
+                        <button onclick='loadData(${JSON.stringify(row)})' class="bg-white text-green-600 border border-green-200 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase hover:bg-green-50">LOAD</button>
+                    </td>
+                </tr>`).join('');
+        };
+
+        window.loadData = (row) => {
+            document.getElementById('editingId').value = row.id;
+            document.getElementById('tgl').value = row.check_date;
+            row.items_data.forEach((val, i) => {
+                const rad = document.querySelector(`input[name="t-${i+1}"][value="${val}"]`);
+                if(rad) { rad.checked = true; App.updateRowStyle(i+1, val); }
+            });
+            App.refreshSummary(); closeAllDrawers(); updateMonthBadge();
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        window.resetForm = () => {
+            document.getElementById('editingId').value = "";
+            document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+            document.querySelectorAll('tr').forEach(tr => tr.classList.remove('row-baik','row-rusak','row-hilang'));
+            App.refreshSummary(); closeAllDrawers();
+        };
+
+        window.toggleDrawer = () => { closeAllDrawers(); document.getElementById('sideDrawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('visible'); };
+        window.openHistory = () => { closeAllDrawers(); document.getElementById('bottomDrawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('visible'); fetchHistory(); };
+        window.closeAllDrawers = () => { document.getElementById('sideDrawer').classList.remove('open'); document.getElementById('bottomDrawer').classList.remove('open'); document.getElementById('drawerOverlay').classList.remove('visible'); };
+
+        function runAutoScale() {
+            const s = document.getElementById('scaler-context');
+            if(!s) return;
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            s.style.transform = `scale(${scaleRatio})`;
+            s.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * s.offsetHeight}px` : "0px";
+        }
+        function updateMonthBadge() {
+            const d = new Date(document.getElementById('tgl').value);
+            const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            document.getElementById('currentMonthBadge').innerText = `${m[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

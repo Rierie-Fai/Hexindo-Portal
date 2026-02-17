@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Settings Mecha | NIK Terminal</title>
+    <link rel="manifest" href="../manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --glass-bg: rgba(255, 255, 255, 0.85); 
+            --glass-border: rgba(255, 255, 255, 1);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-primary: #1e293b;
+            --accent-color: #f59e0b; 
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: radial-gradient(at 0% 0%, hsla(210,100%,96%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(210,100%,93%,1) 0, transparent 50%), linear-gradient(0deg, #e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+            min-height: 100vh; color: var(--text-primary); margin: 0; padding: 0;
+            overflow-x: hidden; display: flex; justify-content: center; align-items: flex-start;
+        }
+
+        #mecha-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0.6; }
+
+        #scaler-context { width: var(--base-width); transform-origin: top center; transition: transform 0.2s ease-out; flex-shrink: 0; padding: 1.5rem; position: relative; z-index: 10; }
+
+        .glass-mecha { 
+            background: var(--glass-bg); backdrop-filter: blur(20px) saturate(120%); 
+            border: 2px solid var(--glass-border); box-shadow: var(--glass-shadow);
+            border-radius: 20px; position: relative; overflow: hidden; margin-bottom: 2rem;
+        }
+        .glass-mecha::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: linear-gradient(180deg, var(--accent-color), transparent); opacity: 0.8; }
+
+        .input-mecha { 
+            border: 2px solid #cbd5e1; border-radius: 12px; font-weight: 700; width: 100%; 
+            padding: 16px 18px; background: rgba(255, 255, 255, 0.8); font-size: 16px;
+            outline: none; transition: 0.3s; color: var(--text-primary); font-family: 'Rajdhani', sans-serif;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .input-mecha:focus { border-color: var(--accent-color); background: #ffffff; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
+
+        .btn-mecha {
+            position: relative; overflow: hidden; transition: all 0.3s; transform: skew(-10deg);
+            display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 8px;
+        }
+        .btn-mecha span, .btn-mecha i { transform: skew(10deg); }
+        .btn-mecha:active { transform: skew(-10deg) scale(0.96); }
+
+        .theme-card { border: 3px solid transparent; cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .theme-card.active { border-color: var(--accent-color); background: rgba(245, 158, 11, 0.05); transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(245, 158, 11, 0.2); }
+        .theme-card.active::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border: 2px solid transparent; border-color: var(--accent-color); clip-path: polygon(0 0, 100% 0, 100% 15%, 85% 0, 0 0, 0 100%, 15% 100%, 0 85%); }
+
+        #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; transition: opacity 0.5s; }
+        .loader-mecha { width: 60px; height: 60px; border: 6px solid #e2e8f0; border-top: 6px solid var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    
+    <canvas id="mecha-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="loader-mecha"></div>
+        <p class="text-amber-500 text-xs font-mono font-bold tracking-widest mt-4">LOADING CONFIG...</p>
+    </div>
+
+    <div id="scaler-context">
+        
+        <header class="glass-mecha p-8 flex justify-between items-center no-print">
+            <div class="flex items-center gap-6">
+                <a href="index.html" class="h-14 w-14 bg-white rounded-xl flex items-center justify-center text-slate-600 text-xl shadow-md border border-slate-200 hover:text-amber-600 hover:scale-105 transition-all">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div>
+                    <h1 class="text-4xl font-black text-slate-800 leading-none tracking-tight uppercase italic" style="font-family: 'Rajdhani'">NIK <span class="text-amber-500">MANAGER</span></h1>
+                    <div class="flex items-center gap-3 mt-2">
+                        <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+                        <p class="text-xs font-bold text-slate-400 tracking-[0.2em] uppercase">SECURE TERMINAL ACCESS</p>
+                    </div>
+                </div>
+            </div>
+            <div id="roleBadge" class="px-4 py-2 bg-slate-100 rounded-lg text-xs font-bold text-slate-500 uppercase border-2 border-slate-200 font-mono tracking-wide shadow-sm">
+                <i class="fas fa-spinner fa-spin mr-2"></i> VERIFYING...
+            </div>
+        </header>
+
+        <section class="glass-mecha p-8">
+            <div class="flex items-center gap-5 mb-6 pb-4 border-b-2 border-slate-100">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-xl shadow-sm"><i class="fas fa-palette"></i></div>
+                <div><h2 class="text-lg font-black uppercase text-slate-800 tracking-wide">Interface Protocol</h2><p class="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wide">Select Visual System</p></div>
+            </div>
+            <div class="grid grid-cols-2 gap-5 mb-6">
+                <div onclick="selectTheme('mint')" id="card-mint" class="theme-card bg-white p-5 rounded-xl shadow-sm flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center border-2 border-green-200"><i class="fas fa-leaf text-green-500 text-2xl"></i></div>
+                    <div class="text-center"><h3 class="text-sm font-black text-slate-700 uppercase tracking-wide">MINT FRESH</h3><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Light UI</p></div>
+                </div>
+                <div onclick="selectTheme('mecha')" id="card-mecha" class="theme-card bg-slate-800 p-5 rounded-xl shadow-sm flex flex-col items-center gap-3 border-slate-700">
+                    <div class="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center border-2 border-cyan-500"><i class="fas fa-robot text-cyan-400 text-2xl"></i></div>
+                    <div class="text-center"><h3 class="text-sm font-black text-white uppercase tracking-wide">MECHA DARK</h3><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Dark UI</p></div>
+                </div>
+            </div>
+            <button onclick="applyTheme()" class="btn-mecha w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-blue-500"><span class="text-sm uppercase tracking-[0.15em]"><i class="fas fa-sync-alt mr-2"></i>APPLY & REBOOT SYSTEM</span></button>
+        </section>
+
+        <section id="adminPanel" class="glass-mecha p-8 hidden border-l-8 border-amber-500">
+            <div class="flex items-center gap-5 mb-6 pb-4 border-b-2 border-slate-100">
+                <div class="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-user-plus"></i></div>
+                <div><h2 class="text-lg font-black uppercase text-slate-800 tracking-wide">Deploy Technician</h2><p class="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wide">Authorize new NIK access</p></div>
+            </div>
+            <form id="addUserForm" class="space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <input type="text" id="regNik" class="input-mecha font-mono text-amber-700" placeholder="INPUT NIK" required>
+                    <input type="text" id="regName" class="input-mecha uppercase" placeholder="FULL NAME" required>
+                </div>
+                <button type="submit" id="btnDeploy" class="btn-mecha w-full bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-700"><span class="text-sm uppercase tracking-[0.15em]"><i class="fas fa-rocket mr-2"></i>AUTHORIZE ACCESS</span></button>
+            </form>
+        </section>
+
+        <section id="userListPanel" class="glass-mecha p-0 hidden overflow-hidden">
+            <div class="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div class="flex items-center gap-3"><i class="fas fa-database text-slate-400"></i><h2 class="text-sm font-black uppercase text-slate-600 tracking-widest">NIK DATABASE</h2></div>
+                <div class="relative group">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchBar" onkeyup="searchNIK()" class="pl-10 pr-4 py-2.5 text-sm font-bold border-2 border-slate-200 rounded-xl bg-white outline-none focus:border-amber-400 w-64 transition-all" placeholder="SEARCH NIK...">
+                </div>
+            </div>
+            <div class="overflow-x-auto max-h-[500px]">
+                <table class="w-full">
+                    <thead class="sticky top-0 z-20 shadow-sm bg-slate-50"><tr><th class="pl-6">NIK ID</th><th>IDENTITY</th><th>STATUS</th><th class="text-right pr-6">CONTROL</th></tr></thead>
+                    <tbody id="userTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="glass-mecha p-8">
+            <div class="flex items-center gap-5 mb-6 pb-4 border-b-2 border-slate-100">
+                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 text-xl shadow-sm"><i class="fas fa-shield-alt"></i></div>
+                <div><h2 class="text-lg font-black uppercase text-slate-800 tracking-wide">Security Update</h2><p class="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wide">Change Personal Password</p></div>
+            </div>
+            <form id="changePassForm" class="space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <input type="password" id="newPass" class="input-mecha" placeholder="NEW PASSWORD" required>
+                    <input type="password" id="confirmPass" class="input-mecha" placeholder="CONFIRM PASSWORD" required>
+                </div>
+                <button type="submit" class="btn-mecha w-full bg-amber-500 text-white font-black py-4 rounded-xl shadow-lg hover:bg-amber-400"><span class="text-sm uppercase tracking-[0.15em]"><i class="fas fa-lock mr-2"></i>UPDATE SECURITY KEY</span></button>
+            </form>
+        </section>
+
+        <footer class="text-center py-10">
+            <button onclick="logout()" class="text-red-500 text-xs font-black uppercase tracking-[0.2em] hover:text-red-600 mb-4"><i class="fas fa-power-off mr-1"></i> TERMINATE SESSION</button>
+            <p class="text-slate-400 text-xs uppercase font-black tracking-[0.5em]">HEXINDO FLEET SYSTEM</p>
+        </footer>
+    </div>
+
+    <script>
+        const CONFIG = { SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co", SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E" };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        const currentNik = localStorage.getItem('userNIK');
+        let selectedTheme = localStorage.getItem('appTheme') || 'mecha';
+
+        function selectTheme(t) { selectedTheme = t; document.querySelectorAll('.theme-card').forEach(el => el.classList.remove('active')); document.getElementById(`card-${t}`).classList.add('active'); }
+        function applyTheme() { localStorage.setItem('appTheme', selectedTheme); if (selectedTheme === 'mint') window.location.href = '../mint-version/setting.html'; else window.location.href = '../mecha-version/setting.html'; }
+        function loadCurrentThemeUI() { selectTheme(localStorage.getItem('appTheme') || 'mecha'); }
+
+        async function initPage() {
+            loadCurrentThemeUI();
+            if (!currentNik) { window.location.href = "login.html"; return; }
+            try {
+                const { data: user, error } = await sb.from('users').select('role').eq('nik', currentNik).single();
+                if (error || !user) throw new Error("Access Denied");
+                
+                const isAdmin = (user.role === 'admin');
+                const badge = document.getElementById('roleBadge');
+                badge.innerHTML = isAdmin ? `<i class="fas fa-user-shield mr-2"></i> ADMIN ACCESS` : `<i class="fas fa-tools mr-2"></i> TECH ACCESS`;
+                
+                if(isAdmin) {
+                    badge.classList.remove('bg-slate-100', 'text-slate-500', 'border-slate-200');
+                    badge.classList.add('bg-amber-100', 'text-amber-700', 'border-amber-300');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    document.getElementById('userListPanel').classList.remove('hidden');
+                    await fetchUsers();
+                }
+            } catch (err) { console.error(err); }
+            resizeCanvas(); initParticles(); animateParticles(); runAutoScale();
+            setTimeout(() => { document.getElementById('splash-screen').style.opacity = '0'; setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500); }, 800);
+        }
+
+        async function fetchUsers() {
+            const { data } = await sb.from('users').select('*').order('full_name');
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = (data || []).map(u => `
+                <tr class="hover:bg-amber-50 transition-colors ${u.status === 'suspended' ? 'opacity-60 grayscale bg-slate-100' : ''}">
+                    <td class="pl-6 font-mono font-bold text-amber-700 text-sm tracking-wide border-l-4 border-transparent hover:border-amber-500">${u.nik}</td>
+                    <td><div class="font-black text-slate-800 text-sm uppercase tracking-wide">${u.full_name}</div><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">${u.role}</div></td>
+                    <td><span class="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${u.status === 'active' || !u.status ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-100 text-red-600 border-red-200'}">${u.status || 'active'}</span></td>
+                    <td class="text-right pr-6 space-x-2">
+                        <button onclick="toggleStatus('${u.nik}', '${u.status}')" class="btn-mecha bg-white border-2 border-slate-200 text-slate-400 h-9 w-9 rounded-lg hover:text-amber-600 hover:border-amber-300" title="Toggle"><i class="fas fa-power-off text-xs"></i></button>
+                        <button onclick="resetUserPass('${u.nik}')" class="btn-mecha bg-white border-2 border-slate-200 text-slate-400 h-9 w-9 rounded-lg hover:text-red-500 hover:border-red-300" title="Reset"><i class="fas fa-key text-xs"></i></button>
+                    </td>
+                </tr>`).join('');
+            runAutoScale();
+        }
+
+        async function toggleStatus(nik, status) { const newStatus = (status === 'active' || !status) ? 'suspended' : 'active'; await sb.from('users').update({ status: newStatus }).eq('nik', nik); fetchUsers(); }
+        async function resetUserPass(nik) { const p = prompt(`Enter new password for ${nik}:`, "hexindo123"); if (p) { await sb.from('users').update({ password: p }).eq('nik', nik); alert("✅ Password Reset!"); } }
+
+        function searchNIK() { const input = document.getElementById("searchBar").value.toUpperCase(); const rows = document.querySelector("#userTableBody").rows; for (let i = 0; i < rows.length; i++) { rows[i].style.display = rows[i].innerText.toUpperCase().includes(input) ? "" : "none"; } }
+
+        document.getElementById('addUserForm').onsubmit = async (e) => {
+            e.preventDefault(); const btn = document.getElementById('btnDeploy'); const orig = btn.innerHTML; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; btn.disabled = true;
+            const newNik = document.getElementById('regNik').value.toUpperCase().trim(); const newName = document.getElementById('regName').value.toUpperCase().trim();
+            const { data: existing } = await sb.from('users').select('nik').eq('nik', newNik).single();
+            if(existing) { alert("⚠️ NIK Exists!"); btn.innerHTML = orig; btn.disabled = false; return; }
+            const { error } = await sb.from('users').insert([{ nik: newNik, full_name: newName, password: 'hexindo123', role: 'technician', status: 'active' }]);
+            if (!error) { alert("✅ Deployed!"); e.target.reset(); fetchUsers(); } btn.innerHTML = orig; btn.disabled = false;
+        };
+
+        document.getElementById('changePassForm').onsubmit = async (e) => { e.preventDefault(); const p1 = document.getElementById('newPass').value; const p2 = document.getElementById('confirmPass').value; if(p1 !== p2) return alert("⚠️ Mismatch!"); const { error } = await sb.from('users').update({ password: p1 }).eq('nik', currentNik); if (!error) { alert("✅ Key Updated!"); e.target.reset(); } };
+
+        function logout() { const t = localStorage.getItem('appTheme'); localStorage.clear(); if(t) localStorage.setItem('appTheme', t); window.location.href = "login.html"; }
+        
+        const canvas = document.getElementById('mecha-canvas'); const ctx = canvas.getContext('2d'); let particles = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        class MechaParticle { constructor() { this.reset(); } reset() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.size = Math.random() * 2 + 0.5; this.speedY = (Math.random() - 0.5) * 0.5; this.speedX = (Math.random() - 0.5) * 0.5; this.opacity = Math.random() * 0.5 + 0.1; } update() { this.y += this.speedY; this.x += this.speedX; if (this.y < 0 || this.y > canvas.height || this.x < 0 || this.x > canvas.width) this.reset(); } draw() { ctx.fillStyle = `rgba(148, 163, 184, ${this.opacity})`; ctx.beginPath(); ctx.rect(this.x, this.y, this.size, this.size); ctx.fill(); } }
+        function initParticles() { particles = Array.from({length: 60}, () => new MechaParticle()); }
+        function animateParticles() { ctx.clearRect(0, 0, canvas.width, canvas.height); particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
+        function runAutoScale() { const s = document.getElementById('scaler-context'); const w = window.innerWidth; const r = w < 720 ? w/720 : 1; s.style.transform = `scale(${r})`; s.style.marginBottom = w < 720 ? `-${(1 - r) * s.offsetHeight}px` : "0px"; }
+        
+        window.onload = initPage; window.addEventListener('resize', () => { resizeCanvas(); runAutoScale(); });
+    </script>
+</body>
+</html>

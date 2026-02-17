@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pump Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <script src="/js/chart.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --mint-primary: #87cf3a;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.75);
+            /* ULTRA SMOOTH PHYSICS */
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+            --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* --- GLOBAL FLUIDITY --- */
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            -webkit-tap-highlight-color: transparent;
+            transform: translateZ(0);
+        }
+
+        #bubble-canvas { 
+            position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; 
+            will-change: transform;
+        }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; 
+            transition: transform 0.4s var(--ease-out-expo), opacity 0.8s ease;
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10;
+            will-change: transform;
+        }
+
+        /* --- JELLY COMPONENTS --- */
+        .glass-panel { 
+            background: var(--mint-glass); 
+            backdrop-filter: blur(25px) saturate(140%); 
+            -webkit-backdrop-filter: blur(25px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 15px 40px -10px rgba(135, 207, 58, 0.15);
+            border-radius: 32px;
+            position: relative; overflow: hidden;
+            transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s ease;
+        }
+
+        /* --- INPUT MINT --- */
+        .label-mint {
+            font-size: 11px; font-weight: 700; color: #64748b; 
+            text-transform: uppercase; display: block; margin-bottom: 6px; margin-left: 12px;
+            font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
+        }
+        
+        .input-mint { 
+            border: 2px solid transparent; border-radius: 20px; font-weight: 600; width: 100%; 
+            padding: 14px 20px; background: rgba(255, 255, 255, 0.6); font-size: 15px;
+            outline: none; transition: all 0.4s var(--ease-out-expo); color: var(--mint-dark); 
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        .input-mint:focus { 
+            border-color: var(--mint-primary); background: #ffffff; 
+            box-shadow: 0 0 0 5px rgba(135, 207, 58, 0.15); 
+            transform: translateY(-2px);
+        }
+
+        /* --- BUTTON MINT --- */
+        .btn-mint {
+            display: inline-flex; align-items: center; justify-content: center; 
+            cursor: pointer; border-radius: 20px; 
+            transition: all 0.4s var(--ease-out-expo);
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+            transform: translate3d(0,0,0);
+        }
+        .btn-mint:active { transform: scale(0.95); }
+        .btn-mint:hover { filter: brightness(1.05); }
+
+        /* --- TAB SYSTEM --- */
+        .tab-btn {
+            background: transparent; border: none; color: #94a3b8;
+            font-weight: 700; text-transform: uppercase; font-size: 12px; 
+            padding: 12px 24px; border-radius: 16px; 
+            transition: all 0.4s var(--ease-out-expo); font-family: 'Rajdhani', sans-serif;
+        }
+        .tab-btn.active { 
+            background: white; color: var(--mint-primary); 
+            box-shadow: 0 4px 15px rgba(135, 207, 58, 0.2); 
+            transform: scale(1.05);
+        }
+
+        /* --- HISTORY DRAWER --- */
+        #historyDrawer {
+            position: fixed; top: 0; right: 0; height: 100%; width: 340px; z-index: 50;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+            transform: translate3d(100%, 0, 0); 
+            transition: transform 0.5s var(--ease-elastic);
+            display: flex; flex-direction: column; border-radius: 32px 0 0 32px; 
+            box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+        }
+        #historyDrawer.open { transform: translate3d(0, 0, 0); }
+        
+        #historyTrigger {
+            position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+            background: #2f343f; color: white; padding: 30px 10px; 
+            border-radius: 12px 0 0 12px; cursor: pointer; z-index: 40; 
+            writing-mode: vertical-rl; text-orientation: mixed;
+            font-size: 10px; font-weight: 800; letter-spacing: 2px; 
+            box-shadow: -5px 0 20px rgba(0,0,0,0.15); transition: 0.3s;
+        }
+        #historyTrigger:hover { padding-right: 15px; background: var(--mint-primary); }
+
+        /* --- TABLE STYLING --- */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { 
+            background: rgba(248, 250, 252, 0.8); font-size: 11px; text-transform: uppercase; 
+            color: #64748b; padding: 12px; font-weight: 800; text-align: center;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        td { 
+            border-bottom: 1px solid #f1f5f9; padding: 12px 4px; font-size: 14px; 
+            text-align: center; font-weight: 600; color: #334155;
+        }
+        
+        /* QC Colors */
+        .text-emerald-600 { color: #059669 !important; }
+        .text-amber-500 { color: #d97706 !important; }
+        .text-red-500 { color: #dc2626 !important; }
+
+        /* --- LOADER --- */
+        #splash-screen { 
+            position: fixed; inset: 0; background: #f0fdf4; z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 0.5s;
+        }
+        .mint-spinner { 
+            width: 50px; height: 50px; border-radius: 50%; 
+            border: 5px solid #dcfce7; border-top-color: var(--mint-primary); 
+            animation: spin 0.8s infinite linear; 
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <p class="mt-4 text-xs font-bold text-green-600 uppercase tracking-widest">Loading Diagnostics...</p>
+    </div>
+
+    <div id="historyDrawer">
+        <div class="p-6 bg-slate-50 flex justify-between items-center border-b border-slate-200">
+            <div>
+                <h3 class="text-sm font-black text-slate-700 uppercase">History Log</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Previous Tuning</p>
+            </div>
+            <button onclick="toggleHistory()" class="text-slate-400 hover:text-red-500 text-xl"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="history-list"></div>
+    </div>
+    <div id="historyTrigger" onclick="toggleHistory()">HISTORY</div>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <header class="glass-panel p-6 flex justify-between items-center mb-6 bg-[#2f343f] !text-white border-none shadow-xl">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg shadow-green-500/30 hover:scale-110 transition-transform">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-tight">HYDRAULIC <span class="text-green-400">TUNE</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div id="status-dot" class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <p id="sync-status" class="text-[10px] font-mono text-slate-400 tracking-widest uppercase">System Ready</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-slate-700 p-1.5 rounded-2xl">
+                <button onclick="switchTab('general')" id="tab-gen" class="tab-btn active">General</button>
+                <button onclick="switchTab('pump')" id="tab-pump" class="tab-btn">Pump</button>
+            </div>
+        </header>
+
+        <div class="glass-panel p-8 mb-8">
+            <input type="hidden" id="current_record_id">
+            <input type="hidden" id="nik">
+            
+            <div class="flex justify-between items-center mb-6">
+                <span class="text-xs font-bold text-green-600 uppercase tracking-widest bg-green-100 px-3 py-1 rounded-full">Unit Parameters</span>
+                <div class="flex gap-2">
+                    <button onclick="prepareNewEntry()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-blue-500 hover:bg-blue-50 flex items-center justify-center transition-all" title="New Entry"><i class="fas fa-plus"></i></button>
+                    <button onclick="saveToCloud()" class="btn-mint bg-green-500 text-white px-6 py-2 text-xs shadow-lg hover:bg-green-600">SYNC DATA</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-5">
+                <div class="col-span-1"><label class="label-mint">Date</label><input type="date" id="test_date" class="input-mint"></div>
+                <div class="col-span-1"><label class="label-mint">Model</label><input type="text" id="unit_model" class="input-mint text-green-600 font-bold uppercase" placeholder="EX3600-6"></div>
+                <div class="col-span-1"><label class="label-mint">Serial No</label><input type="text" id="serial_num" class="input-mint font-mono uppercase" placeholder="SN..."></div>
+                <div class="col-span-1"><label class="label-mint">HM</label><input type="number" id="hour_meter" class="input-mint font-mono" placeholder="0.0"></div>
+                <div class="col-span-4"><label class="label-mint">Technician</label><input type="text" id="nama_pic" class="input-mint !bg-slate-100 !text-slate-500" readonly></div>
+            </div>
+        </div>
+
+        <div id="section-general" class="space-y-6 fade-in">
+            <div class="glass-panel p-0 overflow-hidden">
+                <div class="bg-slate-50 p-4 border-b border-slate-200"><h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest ml-2">Component History</h3></div>
+                <div class="p-4"><table class="w-full"><thead><tr><th class="text-left pl-6">Item</th><th>Serial No</th><th>Part No</th><th>Life (Hr)</th><th>Note</th></tr></thead><tbody id="comp-history-body"></tbody></table></div>
+            </div>
+
+            <div class="glass-panel p-6">
+                <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                    <h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest ml-2">Main Relief Pressure</h3>
+                    <span class="text-[10px] font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full">STD: 300 - 320 Kgf/cm²</span>
+                </div>
+                <div class="grid grid-cols-4 gap-5" id="pump-relief-grid"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div class="glass-panel p-0 overflow-hidden">
+                    <div class="bg-slate-50 p-4 border-b border-slate-200"><h3 class="text-xs font-bold text-slate-600 uppercase ml-2">Engine RPM</h3></div>
+                    <div class="p-4"><table class="w-full"><thead><tr><th class="text-left pl-6">Mode</th><th>Std</th><th class="text-blue-500">Before</th><th class="text-green-500">After</th></tr></thead><tbody id="engine-speed-body"></tbody></table></div>
+                </div>
+                <div class="glass-panel p-0 overflow-hidden">
+                    <div class="bg-slate-50 p-4 border-b border-slate-200"><h3 class="text-xs font-bold text-slate-600 uppercase ml-2">Cycle Time</h3></div>
+                    <div class="p-4"><table class="w-full"><thead><tr><th class="text-left pl-6">Action</th><th>Std (Sec)</th><th class="text-blue-500">Bef</th><th class="text-green-500">Aft</th></tr></thead><tbody id="cycle-time-body"></tbody></table></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="section-pump" class="hidden space-y-6 fade-in">
+            <div class="flex justify-between items-center bg-[#2f343f] text-white p-5 rounded-3xl shadow-xl mx-1">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-slate-700 rounded-2xl flex items-center justify-center text-green-400 text-2xl font-mono font-bold shadow-inner" id="active-p-num">1</div>
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider block text-slate-400">Active Channel</span>
+                        <span class="text-lg font-black uppercase tracking-tight">Flow Analysis</span>
+                    </div>
+                </div>
+                <div class="relative">
+                    <select id="pump-select" onchange="changePump(this.value)" class="bg-slate-800 text-white text-xs font-bold border border-slate-600 rounded-xl pl-5 pr-10 py-3 outline-none focus:border-green-500 appearance-none cursor-pointer">
+                        <option value="1">PUMP 1</option><option value="2">PUMP 2</option><option value="3">PUMP 3</option><option value="4">PUMP 4</option>
+                        <option value="5">PUMP 5</option><option value="6">PUMP 6</option><option value="7">PUMP 7</option><option value="8">PUMP 8</option>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none"></i>
+                </div>
+            </div>
+
+            <div id="pump-tables-container" class="space-y-6"></div>
+
+            <div class="glass-panel p-6 bg-white/90">
+                <div class="flex justify-between items-center mb-4">
+                     <h3 class="text-xs font-bold text-slate-600 uppercase tracking-widest"><i class="fas fa-chart-line mr-2 text-green-500"></i>Performance Graph</h3>
+                </div>
+                <div style="height: 320px; width: 100%;">
+                    <canvas id="nikChart"></canvas>
+                </div>
+            </div>
+            
+            <textarea id="nik-notes" class="input-mint h-32 resize-none" placeholder="Technical analysis notes..."></textarea>
+        </div>
+
+        <footer class="text-center py-10">
+            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-[0.4em]">Mint Edition v2.3</p>
+        </footer>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+
+        // --- STATE ---
+        let currentNik = localStorage.getItem('userNIK');
+        let currentRecordId = null;
+        let currentPump = "1";
+        let nikChart;
+        let masterStore = JSON.parse(localStorage.getItem('nik_master_store')) || {};
+
+        const pumpFlowStd = [
+            { label: 'P50', p: '50 ± 2', ne: 1900, i: 1.02, np: 1838, min: 524, max: 535, std: '502 ± 5' },
+            { label: 'P137', p: '137 ± 5', ne: 1900, i: 1.02, np: 1838, min: 512, max: 523, std: '491 ± 5' },
+            { label: 'P170', p: '170', ne: 1900, i: 1.02, np: 1838, min: 422, max: 453, std: '415 ± 15' },
+            { label: 'P250', p: '250 ± 5', ne: 1900, i: 1.02, np: 1838, min: 284, max: 315, std: '284 ± 15' },
+            { label: 'P300', p: '300 ± 2', ne: 1900, i: 1.02, np: 1838, min: 234, max: 245, std: '227 ± 5' }
+        ];
+
+        // --- BUBBLE ENGINE ---
+        const canvas = document.getElementById('bubble-canvas');
+        const ctx = canvas.getContext('2d');
+        let bubbles = []; let lastTime = 0;
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        
+        class Bubble {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 100;
+                this.size = Math.random() * 15 + 5;
+                this.speed = Math.random() * 0.8 + 0.3;
+                this.opacity = Math.random() * 0.3 + 0.1;
+                this.color = Math.random() > 0.5 ? '135, 207, 58' : '74, 222, 128';
+            }
+            update(dt) { this.y -= this.speed * dt; if (this.y < -100) this.reset(); }
+            draw() {
+                ctx.fillStyle = `rgba(${this.color}, ${this.opacity})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        function initBubbles() { bubbles = Array.from({length: 50}, () => new Bubble()); }
+        function animate(timestamp) {
+            const dt = (timestamp - lastTime) / 16.67; lastTime = timestamp;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bubbles.forEach(b => { b.update(dt); b.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        // --- APP LOGIC ---
+        const App = {
+            async init() {
+                resizeCanvas(); initBubbles(); requestAnimationFrame(animate);
+                runAutoScale();
+                window.addEventListener('resize', runAutoScale);
+
+                initGeneralForms();
+                await this.syncProfile();
+                this.fetchHistory();
+
+                const dateInp = document.getElementById('test_date');
+                if(dateInp) dateInp.valueAsDate = new Date();
+                document.getElementById('nik').value = currentNik || 'GUEST';
+
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.opacity = '0';
+                    document.getElementById('scaler-context').classList.remove('opacity-0');
+                    setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500);
+                }, 800);
+            },
+
+            async syncProfile() {
+                if (!currentNik) return;
+                try {
+                    const { data } = await sb.from('users').select('full_name').eq('nik', currentNik).single();
+                    if(data) document.getElementById('nama_pic').value = data.full_name;
+                } catch (err) { console.error(err); }
+            },
+
+            async fetchHistory() {
+                const list = document.getElementById('history-list');
+                const { data } = await sb.from('pump_performance_reports').select('*').order('created_at', { ascending: false }).limit(10);
+                
+                if (data && data.length > 0) {
+                    list.innerHTML = data.map(rec => `
+                        <div class="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="loadRecord('${rec.id}')">
+                            <div>
+                                <p class="text-xs font-bold text-slate-700 group-hover:text-green-600 transition-colors">${rec.unit_model} <span class="text-slate-400 mx-1">|</span> ${rec.serial_number}</p>
+                                <p class="text-[10px] text-slate-400 font-mono mt-1">${new Date(rec.test_date).toLocaleDateString()}</p>
+                            </div>
+                            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-green-100 group-hover:text-green-600 transition-colors"><i class="fas fa-arrow-right text-xs"></i></div>
+                        </div>`).join('');
+                } else {
+                    list.innerHTML = `<div class="text-center p-6 text-slate-300 text-[10px] font-bold border-2 border-dashed border-slate-100 rounded-2xl">NO HISTORY</div>`;
+                }
+            }
+        };
+
+        function runAutoScale() {
+            const scaler = document.getElementById('scaler-context');
+            if(!scaler) return;
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            scaler.style.transform = `scale(${scaleRatio})`;
+            scaler.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * scaler.offsetHeight}px` : "0px";
+        }
+
+        // --- VALIDATION HELPER ---
+        function valColor(el, min, max) {
+            const val = parseFloat(el.value);
+            el.classList.remove('text-green-600', 'text-amber-500', 'text-red-500', 'font-black');
+            if (isNaN(val)) return;
+
+            el.classList.add('font-black');
+            if (val >= min && val <= max) el.classList.add('text-green-600'); 
+            else if (val < min) el.classList.add('text-amber-500'); 
+            else el.classList.add('text-red-500'); 
+        }
+
+        function switchTab(t) {
+            document.getElementById('section-general').classList.toggle('hidden', t !== 'general');
+            document.getElementById('section-pump').classList.toggle('hidden', t !== 'pump');
+            document.getElementById('tab-gen').classList.toggle('active', t === 'general');
+            document.getElementById('tab-pump').classList.toggle('active', t === 'pump');
+            if(t === 'pump') { if(!nikChart) initChart(); renderPumpAnalysis(); }
+        }
+
+        function toggleHistory() {
+            document.getElementById('historyDrawer').classList.toggle('open');
+        }
+
+        // --- FORM INIT ---
+        function initGeneralForms() {
+            const compBody = document.getElementById('comp-history-body');
+            const comps = ["ENGINE", "PUMP 1-2", "PUMP 3-4", "PUMP 5-6", "PUMP 7-8"];
+            compBody.innerHTML = comps.map(c => `
+                <tr>
+                    <td class="p-3 font-bold text-xs text-left pl-6 text-slate-700">${c}</td>
+                    <td><input type="text" class="input-mint !p-2 text-center data-comp text-xs font-mono"></td>
+                    <td><input type="text" class="input-mint !p-2 text-center data-comp text-xs font-mono"></td>
+                    <td><input type="number" class="input-mint !p-2 text-center data-comp text-xs font-mono"></td>
+                    <td><input type="text" class="input-mint !p-2 text-center data-comp text-xs"></td>
+                </tr>`).join('');
+
+            const pumpGrid = document.getElementById('pump-relief-grid');
+            pumpGrid.innerHTML = Array.from({length:8}, (_,i)=>`
+                <div class="relative group">
+                    <label class="text-[10px] font-bold text-slate-400 mb-1 block absolute top-2 left-3 group-focus-within:text-green-500 transition-colors">P${i+1}</label>
+                    <input type="number" class="input-mint text-center font-mono text-lg font-bold text-slate-700 data-pump pt-6 pb-2" oninput="valColor(this, 300, 320)">
+                </div>`).join('');
+
+            const engBody = document.getElementById('engine-speed-body');
+            const engData = [{n: "Low Idle", s: "780-820"}, {n: "High Idle", s: "1850-1950"}, {n: "Auto Idle", s: "1350-1450"}, {n: "Relief Idle", s: "1770-1830"}];
+            engBody.innerHTML = engData.map(e => {
+                const [min, max] = e.s.split('-').map(Number);
+                return `
+                <tr>
+                    <td class="p-3 font-bold text-slate-700 text-xs pl-6 text-left">${e.n}</td>
+                    <td class="text-[10px] font-bold text-slate-400 font-mono">${e.s}</td>
+                    <td class="p-1"><input type="number" class="input-mint data-eng text-center font-bold text-blue-600" oninput="valColor(this, ${min}, ${max})"></td>
+                    <td class="p-1"><input type="number" class="input-mint data-eng text-center font-bold text-green-600" oninput="valColor(this, ${min}, ${max})"></td>
+                </tr>`
+            }).join('');
+
+            const cycBody = document.getElementById('cycle-time-body');
+            const actions = [{n: "Boom Raise", s: "8.2±0.5"},{n: "Arm Roll-in", s: "7.0±0.5"},{n: "Arm Roll-out", s: "7.0±0.5"},{n: "Bucket Roll-in", s: "4.7±0.5"},{n: "Bucket Roll-out", s: "4.2±0.5"},{n: "Swing RH", s: "57±3"},{n: "Swing LH", s: "57±3"}];
+            cycBody.innerHTML = actions.map(a => {
+                const [base, tol] = a.s.split('±').map(Number);
+                const min = (base - tol).toFixed(1);
+                const max = (base + tol).toFixed(1);
+                return `
+                <tr>
+                    <td class="text-xs text-left font-bold p-3 pl-6 text-slate-700">${a.n}</td>
+                    <td class="text-[10px] font-mono text-slate-400 font-bold">${a.s}</td>
+                    <td class="p-1"><input type="number" step="0.1" class="input-mint text-center data-cyc font-bold text-blue-600" oninput="valColor(this, ${min}, ${max})"></td>
+                    <td class="p-1"><input type="number" step="0.1" class="input-mint text-center data-cyc font-bold text-green-600" oninput="valColor(this, ${min}, ${max})"></td>
+                </tr>`
+            }).join('');
+        }
+
+        // --- PUMP LOGIC ---
+        function changePump(v) { 
+            currentPump = v; 
+            document.getElementById('active-p-num').innerText = v; 
+            renderPumpAnalysis(); 
+        }
+
+        function renderPumpAnalysis() {
+            const container = document.getElementById('pump-tables-container');
+            const pumpData = masterStore[currentPump] || { valuesBefore: [], valuesAfter: [] };
+            
+            const buildTable = (title, type) => {
+                const values = (type === 'after' ? pumpData.valuesAfter : pumpData.valuesBefore) || [];
+                return `
+                    <div class="glass-panel p-0 overflow-hidden mb-0">
+                        <div class="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
+                            <h3 class="text-[10px] font-black text-slate-600 uppercase px-2 tracking-wider">${title}</h3>
+                        </div>
+                        <table class="w-full">
+                            <thead><tr><th>Point</th><th>Press</th><th class="text-blue-500">Flow</th><th>QC Calc</th><th>Std QC</th></tr></thead>
+                            <tbody>
+                                ${pumpFlowStd.map((item, i) => {
+                                    const val = values[i] || '';
+                                    const qc = val ? Math.round((item.np * val) / (item.i * item.ne)) : '-';
+                                    let color = 'text-slate-400';
+                                    if(qc !== '-') {
+                                        const [base, tol] = item.std.split('±').map(Number);
+                                        if (qc < base - tol) color = 'text-amber-500 font-black'; // Low
+                                        else if (qc > base + tol) color = 'text-red-500 font-black'; // High
+                                        else color = 'text-green-500 font-black'; // OK
+                                    }
+                                    return `<tr>
+                                        <td class="font-bold text-slate-700">${item.label}</td>
+                                        <td class="text-slate-400 font-mono text-[10px]">${item.p}</td>
+                                        <td><input type="number" class="input-mint !p-2 text-center w-24 font-mono text-blue-600 font-bold" data-type="${type}" data-idx="${i}" value="${val}" oninput="updatePumpValueRealtime(this)"></td>
+                                        <td class="${color} text-sm font-mono">${qc}</td>
+                                        <td class="font-bold text-slate-400 text-[10px] font-mono">${item.std}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            };
+            container.innerHTML = buildTable('1. BEFORE', 'before') + buildTable('2. AFTER', 'after');
+            updateChart();
+        }
+
+        function updatePumpValueRealtime(el) {
+            const type = el.dataset.type;
+            const idx = parseInt(el.dataset.idx);
+            if(!masterStore[currentPump]) masterStore[currentPump] = { valuesBefore: [], valuesAfter: [] };
+            masterStore[currentPump][type === 'after' ? 'valuesAfter' : 'valuesBefore'][idx] = el.value;
+            localStorage.setItem('nik_master_store', JSON.stringify(masterStore));
+            
+            renderPumpAnalysis();
+            const newInput = document.querySelector(`input[data-type="${type}"][data-idx="${idx}"]`);
+            if(newInput) {
+                const val = newInput.value;
+                newInput.focus();
+                newInput.value = ''; newInput.value = val;
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('nikChart').getContext('2d');
+            if (nikChart) nikChart.destroy();
+            nikChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: pumpFlowStd.map(d => d.label),
+                    datasets: [
+                        { label: 'Min', data: pumpFlowStd.map(i => parseInt(i.std.split('±')[0]) - parseInt(i.std.split('±')[1])), borderColor: '#cbd5e1', borderDash: [5,5], pointRadius: 0, borderWidth: 1 },
+                        { label: 'Max', data: pumpFlowStd.map(i => parseInt(i.std.split('±')[0]) + parseInt(i.std.split('±')[1])), borderColor: '#cbd5e1', borderDash: [5,5], pointRadius: 0, borderWidth: 1 },
+                        { label: 'Before', data: [], borderColor: '#94a3b8', tension: 0.3, pointRadius: 4, borderWidth: 2 },
+                        { label: 'After', data: [], borderColor: '#22c55e', tension: 0.3, pointRadius: 5, borderWidth: 3, backgroundColor: 'rgba(34, 197, 94, 0.1)', fill: true }
+                    ]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { font: { family: 'Rajdhani', size: 12 } } } },
+                    scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        function updateChart() {
+            if(!nikChart) return;
+            const pumpData = masterStore[currentPump] || { valuesBefore: [], valuesAfter: [] };
+            const calcQC = (v, i) => v ? Math.round((pumpFlowStd[i].np * v) / (pumpFlowStd[i].i * pumpFlowStd[i].ne)) : null;
+            nikChart.data.datasets[2].data = (pumpData.valuesBefore || []).map(calcQC);
+            nikChart.data.datasets[3].data = (pumpData.valuesAfter || []).map(calcQC);
+            nikChart.update();
+        }
+
+        async function saveToCloud() {
+            const btn = document.querySelector('button[onclick="saveToCloud()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i>`;
+            
+            const recId = document.getElementById('current_record_id').value;
+            const record = {
+                test_date: document.getElementById('test_date').value,
+                nik: document.getElementById('nik').value,
+                unit_model: document.getElementById('unit_model').value.toUpperCase(),
+                serial_number: document.getElementById('serial_num').value.toUpperCase(),
+                hour_meter: document.getElementById('hour_meter').value,
+                component_history: Array.from(document.querySelectorAll('.data-comp')).map(i => i.value),
+                pump_relief_values: Array.from(document.querySelectorAll('.data-pump')).map(i => i.value),
+                engine_speed_values: Array.from(document.querySelectorAll('.data-eng')).map(i => i.value),
+                cycle_time_values: Array.from(document.querySelectorAll('.data-cyc')).map(i => i.value),
+                all_pumps_data: masterStore
+            };
+            
+            const { error } = recId ? await sb.from('pump_performance_reports').update(record).eq('id', recId) : await sb.from('pump_performance_reports').insert([record]);
+            
+            btn.innerHTML = originalText;
+            if (error) alert("Sync Failed: " + error.message); 
+            else { 
+                alert("✅ Sync Success!"); 
+                prepareNewEntry(); 
+                App.fetchHistory(); 
+            }
+        }
+
+        async function loadRecord(id) {
+            const { data } = await sb.from('pump_performance_reports').select('*').eq('id', id).single();
+            if (data) {
+                document.getElementById('current_record_id').value = data.id;
+                document.getElementById('unit_model').value = data.unit_model;
+                document.getElementById('serial_num').value = data.serial_number;
+                document.getElementById('test_date').value = data.test_date;
+                document.getElementById('hour_meter').value = data.hour_meter;
+                masterStore = data.all_pumps_data || {};
+                localStorage.setItem('nik_master_store', JSON.stringify(masterStore));
+                
+                const populate = (sel, vals) => {
+                    document.querySelectorAll(sel).forEach((el, i) => {
+                        el.value = vals[i] || '';
+                        el.dispatchEvent(new Event('input')); 
+                    });
+                };
+
+                populate('.data-comp', data.component_history || []);
+                populate('.data-pump', data.pump_relief_values || []);
+                populate('.data-eng', data.engine_speed_values || []);
+                populate('.data-cyc', data.cycle_time_values || []);
+                
+                if(!document.getElementById('section-pump').classList.contains('hidden')) renderPumpAnalysis();
+                document.getElementById('historyDrawer').classList.remove('open');
+                
+                document.getElementById('sync-status').innerText = "EDIT MODE";
+                document.getElementById('status-dot').className = "w-2 h-2 bg-amber-400 rounded-full animate-pulse";
+            }
+        }
+
+        function prepareNewEntry() {
+            document.getElementById('current_record_id').value = "";
+            document.querySelectorAll('input:not([readonly])').forEach(i => {
+                i.value = "";
+                i.classList.remove('text-green-600', 'text-amber-500', 'text-red-500', 'font-black'); 
+            });
+            document.getElementById('test_date').valueAsDate = new Date();
+            masterStore = {};
+            localStorage.removeItem('nik_master_store');
+            if(!document.getElementById('section-pump').classList.contains('hidden')) renderPumpAnalysis();
+            document.getElementById('sync-status').innerText = "NEW ENTRY MODE";
+            document.getElementById('status-dot').className = "w-2 h-2 bg-green-400 rounded-full animate-pulse";
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

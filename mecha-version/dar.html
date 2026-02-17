@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Activity Mecha White | Hexindo Fleet</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f1f5f9">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <script src="/js/xlsx.full.min.js"></script>
+    <script src="/js/jspdf.umd.min.js"></script>
+    <script src="/js/jspdf.plugin.autotable.min.js"></script>
+    
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet"
+    <link href="/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.9);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #2563eb;
+            --accent-warm: #f59e0b;
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: radial-gradient(at 0% 0%, hsla(210,100%,96%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(210,100%,93%,1) 0, transparent 50%);
+            min-height: 100vh; color: var(--text-primary); margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+        }
+
+        #mecha-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0.6; }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; transition: transform 0.2s ease-out;
+            flex-shrink: 0; padding: 1.5rem; position: relative; z-index: 10;
+        }
+
+        .glass-mecha { 
+            background: var(--glass-bg); backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(255, 255, 255, 1); box-shadow: var(--glass-shadow);
+            border-radius: 16px; position: relative; overflow: hidden;
+        }
+        .glass-mecha::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%;
+            background: linear-gradient(180deg, var(--accent-color), transparent); opacity: 0.6;
+        }
+
+        /* --- TYPOGRAPHY --- */
+        .header-label { 
+            font-size: 12px; font-weight: 700; color: var(--text-secondary); 
+            text-transform: uppercase; display: block; margin-bottom: 6px; 
+            font-family: 'JetBrains Mono', monospace; 
+        }
+        .header-val { 
+            border: 1px solid #cbd5e1; border-radius: 10px; font-weight: 600; width: 100%; 
+            padding: 12px 14px; background: rgba(255, 255, 255, 0.7); font-size: 16px; 
+            outline: none; transition: 0.3s; color: var(--text-primary); 
+        }
+        .header-val:focus { border-color: var(--accent-color); background: #ffffff; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        /* --- MASTER LIST --- */
+        .master-scroll-container {
+            max-height: 600px; overflow-y: auto; padding-right: 8px; margin-top: 1rem;
+            scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent;
+        }
+        .master-scroll-container::-webkit-scrollbar { width: 6px; }
+        .master-scroll-container::-webkit-scrollbar-track { background: transparent; }
+        .master-scroll-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+
+        /* --- TABLE STYLING --- */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { 
+            background: #f8fafc; font-size: 12px; text-transform: uppercase; 
+            color: var(--text-secondary); border-bottom: 2px solid #e2e8f0; 
+            padding: 12px; font-weight: 800; 
+        }
+        .td-main { 
+            border-bottom: 1px solid #e2e8f0; padding: 14px; font-size: 14.5px; 
+            vertical-align: top !important; background: rgba(255,255,255,0.5); 
+        }
+        .cell-time { 
+            font-family: 'JetBrains Mono', monospace; color: var(--accent-color); 
+            font-weight: 700; text-align: center; background: rgba(241, 245, 249, 0.6); 
+            width: 100px; border-bottom: 1px solid #e2e8f0; font-size: 12px; 
+        }
+        
+        /* PERBAIKAN UTAMA DI SINI:
+           white-space: pre-wrap; -> Menerjemahkan 'Enter' menjadi baris baru
+        */
+        .description-text { 
+            padding: 12px 14px; border-bottom: 1px solid #e2e8f0; 
+            font-size: 14.5px; font-weight: 600; color: #334155;
+            white-space: pre-wrap; /* KUNCI UNTUK MULTILINE */
+            line-height: 1.6;
+        }
+
+        /* DRAWER & LOADER */
+        #filterDrawer {
+            position: fixed; top: 0; right: 0; height: 100%; width: 340px; z-index: 50;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+            border-left: 1px solid #e2e8f0; transform: translateX(100%); transition: transform 0.3s ease-out;
+            display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+        #filterDrawer.open { transform: translateX(0); }
+        #drawerOverlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 49;
+            backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+
+        #splash-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loader-mecha { width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top: 4px solid var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .fade-out { opacity: 0; visibility: hidden; transition: 0.8s; }
+        
+        .btn-mecha { position: relative; overflow: hidden; transition: all 0.3s; transform: skew(-10deg); display: inline-flex; align-items: center; justify-content: center; }
+        .btn-mecha span { transform: skew(10deg); }
+        .btn-mecha:active { transform: skew(-10deg) scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <canvas id="mecha-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="loader-mecha"></div>
+        <p class="mt-6 font-bold text-slate-600 text-sm tracking-[0.2em] uppercase animate-pulse">Initializing Interface...</p>
+    </div>
+
+    <div id="drawerOverlay" onclick="toggleFilterDrawer()"></div>
+    <aside id="filterDrawer">
+        <div class="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+            <div>
+                <h3 class="text-sm font-black text-slate-700 font-mono uppercase">/// FILTER_DB</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Search Parameters</p>
+            </div>
+            <button onclick="toggleFilterDrawer()" class="text-slate-400 hover:text-red-500 text-2xl"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-5 flex-1 overflow-y-auto">
+            <div>
+                <label class="header-label">Keyword Search</label>
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-3.5 text-slate-400 text-sm"></i>
+                    <input type="text" id="filterKeyword" class="header-val pl-10" placeholder="Customer, Unit, or Job...">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="header-label">Start Date</label><input type="date" id="filterDateStart" class="header-val"></div>
+                <div><label class="header-label">End Date</label><input type="date" id="filterDateEnd" class="header-val"></div>
+            </div>
+            <div>
+                <label class="header-label">Cloud Status</label>
+                <select id="filterStatus" class="header-val">
+                    <option value="all">Show All</option>
+                    <option value="synced">Synced Only</option>
+                    <option value="local">Local Only</option>
+                </select>
+            </div>
+        </div>
+        <div class="p-5 border-t border-slate-200 bg-slate-50 flex gap-3">
+            <button onclick="resetFilter()" class="flex-1 py-3 rounded-lg border border-slate-300 text-slate-600 font-bold text-xs uppercase hover:bg-white transition-all">
+                <i class="fas fa-undo mr-1"></i> Reset
+            </button>
+            <button onclick="applyFilter()" class="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold text-xs uppercase shadow-lg hover:bg-blue-500 transition-all">
+                <i class="fas fa-check mr-1"></i> Apply
+            </button>
+        </div>
+    </aside>
+
+    <div id="scaler-context" class="space-y-6">
+        
+        <header class="glass-mecha p-6 flex justify-between items-center no-print gap-4 shadow-lg">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-slate-600 shadow-sm border border-slate-200 hover:text-blue-600 transition-all text-xl">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800 leading-none tracking-tight uppercase" style="font-family: 'JetBrains Mono'">ACTIVITY <span class="text-blue-600">LOG</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">System Online</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="toggleFilterDrawer()" class="bg-white hover:bg-slate-50 text-slate-600 px-5 py-2.5 rounded-xl shadow-sm border border-slate-200 font-bold text-xs uppercase transition-colors">
+                    <i class="fas fa-filter text-blue-500 mr-1.5"></i> Filter
+                </button>
+                <div class="flex flex-col gap-1.5 ml-2 border-l border-slate-300 pl-4 justify-center">
+                    <button onclick="exportToPDF()" class="text-slate-500 hover:text-red-500 font-bold text-[10px] uppercase text-left flex items-center gap-1.5">
+                        <i class="fas fa-file-pdf text-sm"></i> PDF
+                    </button>
+                    <button onclick="exportToExcel()" class="text-slate-500 hover:text-emerald-600 font-bold text-[10px] uppercase text-left flex items-center gap-1.5">
+                        <i class="fas fa-file-excel text-sm"></i> XLS
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="glass-mecha p-7 no-print">
+            <input type="hidden" id="editId">
+            <div class="flex justify-between items-end mb-5 border-b border-slate-200 pb-3">
+                <span class="text-sm font-bold text-slate-400 font-mono">/// INPUT_PARAMETERS</span>
+                <div class="flex gap-4">
+                    <button onclick="pullFromCloud()" id="btnPull" class="text-[10px] font-bold text-blue-500 uppercase hover:text-blue-700 transition-colors">
+                        <i class="fas fa-cloud-download-alt mr-1 text-xs"></i> Pull Data
+                    </button>
+                    <button onclick="syncToCloud()" id="btnSyncSmall" class="text-[10px] font-bold text-amber-500 uppercase hover:text-amber-700 transition-colors">
+                        <i class="fas fa-cloud-upload-alt mr-1 text-xs"></i> Push Data
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div>
+                    <label class="header-label">Technician & NIK</label>
+                    <div class="flex gap-3">
+                        <input type="text" id="nameInp" class="header-val bg-slate-100/60" readonly>
+                        <input type="text" id="nikInp" class="header-val w-32 text-center font-mono bg-slate-100/60 text-slate-500" readonly>
+                    </div>
+                </div>
+                <div><label class="header-label">Date</label><input type="date" id="dateInp" class="header-val"></div>
+                <div><label class="header-label">Customer</label><input type="text" id="customerInp" class="header-val" placeholder="PT ADARO"></div>
+                <div><label class="header-label">Location</label><input type="text" id="locationInp" class="header-val" placeholder="NORTH PIT"></div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-5 mb-7">
+                <div><label class="header-label">Model</label><input type="text" id="modelInp" class="header-val text-blue-600 font-bold" placeholder="EX3600-6"></div>
+                <div><label class="header-label">Serial No (S/N)</label><input type="text" id="snInp" class="header-val font-mono" placeholder="SN12345"></div>
+                <div><label class="header-label">HM (Hour Meter)</label><input type="number" step="0.1" id="hmInp" class="header-val font-mono" placeholder="0.0"></div>
+                <div><label class="header-label">General Job</label><input type="text" id="jobDescInp" class="header-val" placeholder="PM / REPAIR / INSPECTION"></div>
+            </div>
+
+            <div class="border-t border-slate-200 pt-5 mb-5">
+                 <span class="text-xs font-bold text-slate-400 font-mono block mb-4">/// PROGRESS_LOGS</span>
+                <div id="detailRowsContainer" class="space-y-4"></div>
+            </div>
+            
+            <div class="flex flex-col gap-4 mt-8">
+                <button onclick="smartAddTask()" class="btn-mecha bg-slate-100 text-slate-600 border border-slate-300 py-3.5 rounded-none font-bold text-xs uppercase hover:bg-white hover:text-blue-600 hover:border-blue-300">
+                    <span>+ Add Sequence Row</span>
+                </button>
+                <button id="submitBtn" onclick="submitLog()" class="btn-mecha bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-5 rounded-none uppercase text-sm tracking-[0.2em] shadow-xl shadow-blue-500/20 hover:from-blue-500 hover:to-blue-400 transition-all">
+                    <span>Authorize & Submit</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="master-scroll-container">
+            <div id="masterList" class="space-y-8 pb-8"></div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E",
+            STORAGE_KEY: "techLogs_v4_mecha"
+        };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        
+        let isEditMode = false;
+        let currentFilter = { keyword: "", startDate: "", endDate: "", status: "all" };
+        const userNik = localStorage.getItem('userNIK');
+        const userName = localStorage.getItem('userName'); 
+
+        // --- PARTICLE ENGINE ---
+        const canvas = document.getElementById('mecha-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        class MechaParticle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 1;
+                this.speedY = (Math.random() - 0.5) * 0.5; this.speedX = (Math.random() - 0.5) * 0.5;
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() { this.y += this.speedY; this.x += this.speedX; if (this.y < 0 || this.y > canvas.height || this.x < 0 || this.x > canvas.width) this.reset(); }
+            draw() { ctx.fillStyle = `rgba(148, 163, 184, ${this.opacity})`; ctx.beginPath(); ctx.rect(this.x, this.y, this.size, this.size); ctx.fill(); }
+        }
+        function initParticles() { particles = []; for (let i = 0; i < 80; i++) particles.push(new MechaParticle()); }
+        function animateParticles() { ctx.clearRect(0, 0, canvas.width, canvas.height); particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
+
+        const App = {
+            async init() {
+                resizeCanvas(); initParticles(); animateParticles();
+                if (!userName) {
+                     const { data } = await sb.from('users').select('full_name').eq('nik', userNik).single();
+                     if (data) localStorage.setItem('userName', data.full_name);
+                }
+                document.getElementById('nameInp').value = localStorage.getItem('userName') || 'Technician';
+                document.getElementById('nikInp').value = userNik;
+                document.getElementById('dateInp').valueAsDate = new Date();
+                
+                if(!document.getElementById('detailRowsContainer').children.length) addDetailRow();
+                refreshTable();
+                runAutoScale();
+                setTimeout(() => { document.getElementById('splash-screen').classList.add('fade-out'); setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 1000); }, 800);
+            }
+        };
+
+        function runAutoScale() {
+            const scaler = document.getElementById('scaler-context');
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            scaler.style.transform = `scale(${scaleRatio})`;
+            scaler.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * scaler.offsetHeight}px` : `0px`;
+        }
+        window.addEventListener('resize', () => { resizeCanvas(); runAutoScale(); });
+
+        function toggleFilterDrawer() {
+            document.getElementById('filterDrawer').classList.toggle('open');
+            document.getElementById('drawerOverlay').classList.toggle('visible');
+        }
+
+        // --- FORMATTING LOGIC FOR MULTILINE ---
+        function formatBullet(text) {
+            if (!text) return "";
+            // Split by newline, trim, filter empty, add bullet, join with newline
+            return text.split('\n')
+                .map(l => l.trim())
+                .filter(l => l !== "")
+                .map(l => l.startsWith('•') ? l : `• ${l}`)
+                .join('\n');
+        }
+
+        function addDetailRow(timeF = '', timeT = '', desc = '') {
+            const container = document.getElementById('detailRowsContainer');
+            const div = document.createElement('div');
+            div.className = "flex gap-3 items-start bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm relative group";
+            div.innerHTML = `
+                <div class="absolute -left-1 top-4 w-1.5 h-8 bg-blue-500 rounded-r"></div>
+                <div class="w-28 flex-shrink-0 flex flex-col gap-2">
+                    <input type="time" class="header-val text-center !p-2 text-xs font-mono !bg-white border-slate-300" value="${timeF}">
+                    <input type="time" class="header-val text-center !p-2 text-xs font-mono !bg-white border-slate-300" value="${timeT}">
+                </div>
+                <div class="flex-1">
+                    <textarea class="header-val !p-3 min-h-[80px] text-sm !bg-white border-slate-300" placeholder="Input Detail...">${desc}</textarea>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-300 hover:text-red-500 font-black p-1 text-2xl transition-colors">&times;</button>`;
+            container.appendChild(div);
+            runAutoScale();
+        }
+
+        function smartAddTask() {
+            const rows = document.querySelectorAll('#detailRowsContainer > div');
+            let lastTime = rows.length > 0 ? rows[rows.length - 1].querySelectorAll('input[type="time"]')[1].value : "";
+            addDetailRow(lastTime, "");
+        }
+
+        async function submitLog() {
+            const dateVal = document.getElementById('dateInp').value;
+            const details = Array.from(document.querySelectorAll('#detailRowsContainer > div')).map(row => {
+                const t = row.querySelectorAll('input[type="time"]');
+                const rawDesc = row.querySelector('textarea').value;
+                return { f: t[0].value, t: t[1].value, d: formatBullet(rawDesc) };
+            }).filter(item => item.d !== "");
+
+            if(!dateVal || details.length === 0) return alert("Required: Date & Progress!");
+
+            const logEntry = {
+                id: isEditMode ? parseInt(document.getElementById('editId').value) : Date.now(),
+                date: dateVal, 
+                name: document.getElementById('nameInp').value, 
+                nik: userNik,
+                customer: document.getElementById('customerInp').value.toUpperCase(),
+                location: document.getElementById('locationInp').value.toUpperCase(),
+                model: document.getElementById('modelInp').value.toUpperCase(), 
+                sn: document.getElementById('snInp').value.toUpperCase(),
+                hm: document.getElementById('hmInp').value, 
+                job: document.getElementById('jobDescInp').value.toUpperCase(),
+                isSynced: false, detailData: details
+            };
+
+            let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            isEditMode ? logs = logs.map(l => l.id === logEntry.id ? logEntry : l) : logs.push(logEntry);
+            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
+            
+            sb.from('activity_logs').insert([{
+                nik: userNik, activity: isEditMode ? "Updated Activity Report" : "New Activity Report",
+                details: `${logEntry.customer} - ${logEntry.model}`
+            }]);
+
+            clearForm(); refreshTable(); 
+        }
+
+        // --- CLOUD OPS ---
+        async function syncToCloud() {
+            const btn = document.getElementById('btnSyncSmall');
+            const originalText = btn.innerHTML;
+            let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            if (logs.length === 0) return alert("No data to sync.");
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Pushing...`; btn.disabled = true;
+            try {
+                const payload = logs.map(l => ({ id: l.id, nik: userNik, log_data: { ...l, isSynced: true } }));
+                const { error } = await sb.from('tech_logs').upsert(payload);
+                if (error) throw error;
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs.map(l => ({ ...l, isSynced: true }))));
+                refreshTable(); alert("✅ Sync Success!");
+            } catch (err) { alert("Sync Failed: " + err.message); } finally { btn.innerHTML = originalText; btn.disabled = false; }
+        }
+
+        async function pullFromCloud() {
+            const btn = document.getElementById('btnPull');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Pulling...`; btn.disabled = true;
+            try {
+                const { data, error } = await sb.from('tech_logs').select('log_data').eq('nik', userNik).order('id', { ascending: false });
+                if(error) throw error;
+                if(data && data.length > 0) {
+                    if(confirm(`Found ${data.length} records. Overwrite local?`)) {
+                        const cloudLogs = data.map(item => item.log_data);
+                        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(cloudLogs));
+                        refreshTable(); alert("✅ Data Pulled!");
+                    }
+                } else { alert("☁️ Cloud is Empty."); }
+            } catch (err) { alert("Pull Error: " + err.message); } finally { btn.innerHTML = originalText; btn.disabled = false; }
+        }
+
+        // --- TABLE LOGIC ---
+        function applyFilter() {
+            currentFilter.keyword = document.getElementById('filterKeyword').value.toLowerCase();
+            currentFilter.startDate = document.getElementById('filterDateStart').value;
+            currentFilter.endDate = document.getElementById('filterDateEnd').value;
+            currentFilter.status = document.getElementById('filterStatus').value;
+            refreshTable(); toggleFilterDrawer();
+        }
+
+        function resetFilter() {
+            document.getElementById('filterKeyword').value = ""; document.getElementById('filterDateStart').value = "";
+            document.getElementById('filterDateEnd').value = ""; document.getElementById('filterStatus').value = "all";
+            applyFilter();
+        }
+
+        function refreshTable() {
+            const masterList = document.getElementById('masterList');
+            masterList.innerHTML = '';
+            let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            
+            const filteredLogs = logs.filter(obj => {
+                const matchKeyword = !currentFilter.keyword || (obj.customer + obj.model + obj.job).toLowerCase().includes(currentFilter.keyword);
+                const matchDate = (!currentFilter.startDate || obj.date >= currentFilter.startDate) && (!currentFilter.endDate || obj.date <= currentFilter.endDate);
+                const matchStatus = currentFilter.status === 'all' || (currentFilter.status === 'synced' && obj.isSynced) || (currentFilter.status === 'local' && !obj.isSynced);
+                return matchKeyword && matchDate && matchStatus;
+            });
+
+            if(filteredLogs.length === 0) { masterList.innerHTML = `<div class="text-center p-8 text-slate-400 font-bold text-sm bg-slate-50 rounded-xl border border-slate-200 border-dashed">NO DATA FOUND</div>`; return; }
+
+            filteredLogs.sort((a,b) => b.id - a.id).forEach(obj => {
+                let chronoRows = (obj.detailData || []).map(item => `<tr><td class="cell-time">${item.f}-${item.t}</td><td class="description-text">${item.d}</td></tr>`).join('');
+                const section = document.createElement('div');
+                section.className = "glass-mecha rounded-2xl overflow-hidden mb-6 border border-white/50 shadow-sm";
+                section.innerHTML = `
+                    <div class="bg-slate-50 p-3 flex justify-between items-center border-b border-slate-200">
+                        <span class="text-[9px] font-bold ${obj.isSynced ? 'text-blue-500' : 'text-orange-500'} uppercase font-mono ml-2 tracking-wider">${obj.isSynced ? '❄️ SYNCED_CLOUD' : '⚠️ LOCAL_STORAGE'}</span>
+                        <div class="flex gap-4 mr-2">
+                            <button onclick="editLog(${obj.id})" class="text-blue-500 hover:text-blue-700 text-xs font-black uppercase">EDIT</button>
+                            <button onclick="deleteLog(${obj.id})" class="text-red-400 hover:text-red-600 text-xs font-black uppercase">DELETE</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse table-fixed">
+                            <thead><tr><th style="width: 100px">Date</th><th style="width: 140px">Tech & Client</th><th style="width: 130px">Unit Info</th><th style="width: auto">Progress</th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td class="td-main font-bold text-slate-700 text-center text-xs bg-white">${obj.date}</td>
+                                    <td class="td-main">
+                                        <b class="text-slate-800 text-sm">${obj.name}</b><br><span class="text-xs text-slate-500 font-mono">ID: ${obj.nik}</span>
+                                        <div class="h-px bg-slate-200 my-2"></div><b class="text-blue-700">${obj.customer}</b><br><span class="text-xs text-slate-500 font-bold bg-slate-100 px-1.5 rounded">${obj.location}</span>
+                                    </td>
+                                    <td class="td-main">
+                                        <span class="text-xs font-bold text-slate-600 uppercase block mb-1 bg-slate-100 inline-block px-1.5 rounded">${obj.job || '-'}</span>
+                                        <div class="h-px bg-slate-200 my-2"></div><b class="text-slate-800 text-sm">${obj.model}</b><br><span class="text-xs text-slate-500 font-mono">SN: ${obj.sn}</span><br><span class="text-xs text-slate-500 font-mono">HM: ${obj.hm}</span>
+                                    </td>
+                                    <td class="p-0 bg-white"><table class="w-full border-none">${chronoRows}</table></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>`;
+                masterList.appendChild(section);
+            });
+            runAutoScale();
+        }
+
+        function editLog(id) {
+            const logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            const log = logs.find(l => l.id === id);
+            isEditMode = true;
+            document.getElementById('editId').value = log.id;
+            document.getElementById('customerInp').value = log.customer; document.getElementById('locationInp').value = log.location;
+            document.getElementById('dateInp').value = log.date; document.getElementById('modelInp').value = log.model;
+            document.getElementById('snInp').value = log.sn; document.getElementById('hmInp').value = log.hm;
+            document.getElementById('jobDescInp').value = log.job;
+            document.getElementById('detailRowsContainer').innerHTML = '';
+            log.detailData.forEach(d => addDetailRow(d.f, d.t, d.d));
+            document.getElementById('submitBtn').innerHTML = "<span>Authorize & Update</span>";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function deleteLog(id) {
+            if(confirm("Delete record?")) {
+                let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY)).filter(l => l.id !== id);
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
+                sb.from('activity_logs').insert([{ nik: userNik, activity: "Deleted Activity Report", details: `ID: ${id}` }]);
+                refreshTable();
+            }
+        }
+
+        function clearForm() {
+            isEditMode = false;
+            ['customerInp','locationInp','modelInp','snInp','hmInp','jobDescInp'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('detailRowsContainer').innerHTML = ''; addDetailRow();
+            document.getElementById('submitBtn').innerHTML = "<span>Authorize & Submit</span>";
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            const logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            let flatData = [];
+            logs.forEach(l => {
+                l.detailData.forEach((d, i) => {
+                    flatData.push([ i === 0 ? l.date : '', i === 0 ? l.name : '', i === 0 ? l.customer : '', i === 0 ? l.model : '', i === 0 ? l.job : '', `${d.f}-${d.t}`, d.d ]);
+                });
+            });
+            doc.autoTable({ head: [['DATE', 'TECH', 'CLIENT', 'UNIT', 'JOB', 'TIME', 'DETAIL']], body: flatData, headStyles: { fillColor: [30, 41, 59] }, styles: { fontSize: 9, textColor: [30, 41, 59] }, alternateRowStyles: { fillColor: [241, 245, 249] } });
+            doc.save("Activity_Report.pdf");
+        }
+
+        function exportToExcel() {
+            let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            let flat = logs.flatMap(l => l.detailData.map(d => ({ Tgl: l.date, Tech: l.name, NIK: l.nik, Client: l.customer, Unit: l.model, Job: l.job, Jam: `${d.f}-${d.t}`, Detail: d.d })));
+            const ws = XLSX.utils.json_to_sheet(flat); const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Logs"); XLSX.writeFile(wb, "Activity_Report.xlsx");
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

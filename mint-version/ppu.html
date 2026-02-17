@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>UC Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --mint-primary: #87cf3a;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.75);
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+            --base-width: 720px;
+        }
+
+        /* --- GLOBAL FLUIDITY --- */
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            transform: translateZ(0);
+        }
+
+        #bubble-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; 
+            transition: transform 0.4s var(--ease-out-expo), opacity 0.8s ease;
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10;
+        }
+
+        /* --- JELLY COMPONENTS --- */
+        .glass-panel { 
+            background: var(--mint-glass); 
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 15px 40px -10px rgba(135, 207, 58, 0.15);
+            border-radius: 32px; overflow: hidden;
+            transition: transform 0.3s var(--ease-out-expo);
+        }
+
+        /* --- INPUT MINT --- */
+        .input-mint { 
+            border: 2px solid transparent; border-radius: 20px; font-weight: 600; width: 100%; 
+            padding: 14px 20px; background: rgba(255, 255, 255, 0.6); font-size: 15px;
+            outline: none; transition: 0.3s; color: var(--mint-dark); 
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+        .input-mint:focus { 
+            border-color: var(--mint-primary); background: #ffffff; 
+            box-shadow: 0 0 0 5px rgba(135, 207, 58, 0.15); 
+            transform: translateY(-2px);
+        }
+
+        .label-mint {
+            font-size: 11px; font-weight: 700; color: #64748b; 
+            text-transform: uppercase; display: block; margin-bottom: 6px; margin-left: 12px;
+            font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
+        }
+
+        /* --- BUTTON MINT --- */
+        .btn-mint {
+            display: inline-flex; align-items: center; justify-content: center; 
+            cursor: pointer; border-radius: 20px; transition: 0.3s;
+            font-weight: 700; text-transform: uppercase;
+        }
+        .btn-mint:active { transform: scale(0.95); }
+
+        /* --- TABLE --- */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { 
+            background: rgba(248, 250, 252, 0.9); font-size: 11px; text-transform: uppercase; 
+            color: #64748b; padding: 14px; font-weight: 800; text-align: center; 
+            position: sticky; top: 0; z-index: 20; border-bottom: 2px solid #e2e8f0;
+            backdrop-filter: blur(10px);
+        }
+        td { 
+            border-bottom: 1px solid #f1f5f9; padding: 12px 6px; font-size: 14px; 
+            text-align: center; vertical-align: middle; 
+        }
+        
+        /* Wear Rate Colors */
+        .worn-output { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 13px; color: #94a3b8; }
+        .worn-danger { color: #ef4444; background: #fef2f2; border-radius: 8px; padding: 2px 6px; }
+        .worn-warning { color: #f59e0b; background: #fffbeb; border-radius: 8px; padding: 2px 6px; }
+        .worn-safe { color: #10b981; }
+
+        /* --- DRAWER --- */
+        #drawerOverlay { position: fixed; inset: 0; background: rgba(47, 52, 63, 0.3); z-index: 50; opacity: 0; pointer-events: none; transition: 0.3s; backdrop-filter: blur(4px); }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+        
+        #rightDrawer { 
+            position: fixed; top: 0; right: 0; height: 100%; width: 360px; z-index: 51; 
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); 
+            transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            display: flex; flex-direction: column; border-radius: 32px 0 0 32px;
+            box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+        }
+        #rightDrawer.open { transform: translateX(0); }
+
+        /* --- LOADER --- */
+        #splash-screen { 
+            position: fixed; inset: 0; background: #f0fdf4; z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 0.5s;
+        }
+        .mint-spinner { width: 50px; height: 50px; border-radius: 50%; border: 5px solid #dcfce7; border-top-color: var(--mint-primary); animation: spin 0.8s infinite linear; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <p class="mt-4 text-xs font-bold text-green-600 uppercase tracking-widest">Loading Inspector...</p>
+    </div>
+
+    <div id="drawerOverlay" onclick="toggleDrawer()"></div>
+    <aside id="rightDrawer">
+        <div class="p-6 border-b border-green-100 flex justify-between items-center bg-green-50/50">
+            <div>
+                <h3 class="text-lg font-bold text-slate-700">History Logs</h3>
+                <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Inspection Archive</p>
+            </div>
+            <button onclick="toggleDrawer()" class="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-red-500 shadow-sm"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="historyBody" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+    </aside>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <header class="glass-panel p-6 flex justify-between items-center mb-6 bg-[#2f343f] !text-white border-none shadow-xl">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg hover:scale-110 transition-transform">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-tight">UC <span class="text-green-400">INSPECTOR</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <p id="roleText" class="text-[10px] font-mono text-slate-400 tracking-widest uppercase">System Online</p>
+                    </div>
+                </div>
+            </div>
+            <button onclick="toggleDrawer()" class="h-12 w-12 bg-slate-700 rounded-2xl flex items-center justify-center text-slate-300 hover:text-white transition-all shadow-md">
+                <i class="fas fa-history text-lg"></i>
+            </button>
+        </header>
+
+        <div class="glass-panel p-8 mb-6">
+            <input type="hidden" id="editingId">
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div class="col-span-2">
+                    <label class="label-mint">Technician</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="techName" class="input-mint !bg-slate-100 !text-slate-500" readonly>
+                        <input type="text" id="techNik" class="input-mint !bg-slate-100 !text-slate-500 w-32 text-center font-mono" readonly>
+                    </div>
+                </div>
+                <div><label class="label-mint">Customer</label><input type="text" id="custName" class="input-mint" placeholder="PT Adaro"></div>
+                <div><label class="label-mint">Date</label><input type="date" id="inspDate" class="input-mint"></div>
+                <div><label class="label-mint">Unit Serial No</label><input type="text" id="unitSN" class="input-mint font-mono uppercase text-green-600 font-bold" placeholder="EX3600-6"></div>
+                <div><label class="label-mint">HM</label><input type="number" id="unitHM" class="input-mint font-mono" placeholder="0"></div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-0 overflow-hidden mb-6 bg-white/90">
+            <div class="p-5 bg-slate-50 border-b border-slate-200 sticky top-0 z-30 flex justify-between">
+                <span class="text-xs font-bold text-slate-600 uppercase tracking-widest"><i class="fas fa-ruler-combined mr-2 text-green-500"></i>Measurements</span>
+                <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">Values in mm</span>
+            </div>
+            
+            <div class="overflow-y-auto max-h-[500px]">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="text-left pl-6 text-slate-700">Component</th>
+                            <th rowspan="2" class="text-amber-600">Std</th>
+                            <th rowspan="2" class="text-red-500">Limit</th>
+                            <th colspan="2" class="text-blue-600 border-l border-slate-200">Actual</th>
+                            <th colspan="2" class="text-slate-500 border-l border-slate-200">Wear (%)</th>
+                        </tr>
+                        <tr>
+                            <th class="text-[10px] text-slate-400 border-l border-slate-200">LH</th>
+                            <th class="text-[10px] text-slate-400">RH</th>
+                            <th class="text-[10px] text-slate-400 border-l border-slate-200">LH</th>
+                            <th class="text-[10px] text-slate-400">RH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inspectionBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="glass-panel p-8">
+            <label class="label-mint">Findings / Recommendations</label>
+            <textarea id="commentInp" class="input-mint w-full min-h-[100px] mb-6 text-sm" placeholder="Write inspection summary here..."></textarea>
+            
+            <button onclick="syncToCloud()" id="btnSync" class="btn-mint w-full bg-green-500 text-white py-4 rounded-2xl shadow-lg hover:bg-green-600 hover:-translate-y-1">
+                SUBMIT INSPECTION <i class="fas fa-check-circle ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        const MY_NIK = localStorage.getItem('userNIK') || 'UNKNOWN';
+        
+        // --- ITEMS DEFINITION ---
+        const itemsRaw = [
+            { name: "Shoe Tooth Length", std: 0, limit: 35 },
+            { name: "Shoe Tread", std: 21.5, limit: 31.5 },
+            { name: "Grouser Height", std: 30, limit: 0 },
+            { name: "Link Pitch", std: 1491, limit: 1530 },
+            { name: "Front Idler Dia.", std: 203, limit: 188 },
+            { name: "Tumbler Tread", std: 144, limit: 129 },
+            { name: "Upper Roller 1", std: 380, limit: 350 },
+            { name: "Upper Roller 2", std: 380, limit: 350 },
+            { name: "Upper Roller 3", std: 380, limit: 350 },
+            { name: "Lower Roller 1", std: 490, limit: 460 },
+            { name: "Lower Roller 2", std: 490, limit: 460 },
+            { name: "Lower Roller 3", std: 490, limit: 460 },
+            { name: "Lower Roller 4", std: 490, limit: 460 },
+            { name: "Lower Roller 5", std: 490, limit: 460 },
+            { name: "Lower Roller 6", std: 490, limit: 460 },
+            { name: "Lower Roller 7", std: 490, limit: 460 },
+            { name: "Lower Roller 8", std: 490, limit: 460 }
+        ];
+
+        // --- BUBBLE ENGINE ---
+        const canvas = document.getElementById('bubble-canvas');
+        const ctx = canvas.getContext('2d');
+        let bubbles = [];
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        class Bubble {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 100;
+                this.size = Math.random() * 15 + 5;
+                this.speed = Math.random() * 0.8 + 0.3;
+                this.opacity = Math.random() * 0.3 + 0.1;
+                this.color = Math.random() > 0.5 ? '135, 207, 58' : '74, 222, 128'; 
+            }
+            update() { this.y -= this.speed; if (this.y < -100) this.reset(); }
+            draw() {
+                ctx.fillStyle = `rgba(${this.color}, ${this.opacity})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        function initBubbles() { bubbles = Array.from({length: 50}, () => new Bubble()); }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bubbles.forEach(b => { b.update(); b.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        // --- APP LOGIC ---
+        const App = {
+            async init() {
+                resizeCanvas(); initBubbles(); animate();
+                runAutoScale(); window.addEventListener('resize', runAutoScale);
+
+                document.getElementById('inspDate').valueAsDate = new Date();
+                this.renderTable();
+                await this.syncProfile();
+
+                // Safe UI Reveal
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.opacity = '0';
+                    document.getElementById('scaler-context').classList.remove('opacity-0');
+                    setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500);
+                }, 800);
+            },
+
+            async syncProfile() {
+                try {
+                    const { data: user } = await sb.from('users').select('full_name').eq('nik', MY_NIK).single();
+                    if(user) {
+                        document.getElementById('techName').value = user.full_name;
+                        document.getElementById('techNik').value = MY_NIK;
+                        document.getElementById('roleText').innerText = `NIK: ${MY_NIK} | AUTHENTICATED`;
+                    }
+                } catch(e) { console.error(e); }
+            },
+
+            renderTable() {
+                document.getElementById('inspectionBody').innerHTML = itemsRaw.map((item, i) => `
+                    <tr class="hover:bg-green-50/30 transition-colors group">
+                        <td class="font-bold text-slate-700 text-xs pl-6 py-3 text-left group-hover:text-green-600">${item.name}</td>
+                        <td class="text-center text-amber-600 font-mono text-xs font-bold bg-amber-50/50">${item.std}</td>
+                        <td class="text-center font-mono text-xs font-bold text-red-500 bg-red-50/50">${item.limit}</td>
+                        <td class="border-l border-slate-100"><input type="number" step="0.1" class="input-mint !p-2 text-center font-mono text-blue-600 font-bold !bg-white focus:!bg-blue-50" id="l_${i}" oninput="App.calc(${i}, 'l')"></td>
+                        <td><input type="number" step="0.1" class="input-mint !p-2 text-center font-mono text-blue-600 font-bold !bg-white focus:!bg-blue-50" id="r_${i}" oninput="App.calc(${i}, 'r')"></td>
+                        <td id="wl_${i}" class="worn-output border-l border-slate-100">-</td><td id="wr_${i}" class="worn-output">-</td>
+                    </tr>`).join('');
+            },
+
+            calc(idx, side) {
+                const val = parseFloat(document.getElementById(`${side}_${idx}`).value);
+                const target = document.getElementById(`w${side}_${idx}`);
+                const item = itemsRaw[idx];
+                
+                if(isNaN(val)) { target.innerText = "-"; target.className = "worn-output"; return; }
+                
+                let worn = (item.std > item.limit) 
+                    ? ((item.std - val) / (item.std - item.limit)) * 100 
+                    : ((val - item.std) / (item.limit - item.std)) * 100;
+                
+                let res = Math.max(0, Math.round(worn));
+                target.innerText = res + "%";
+                
+                // Color Logic
+                target.className = "worn-output " + (res >= 100 ? "worn-danger" : res >= 75 ? "worn-warning" : "worn-safe");
+            },
+
+            async syncToCloud() {
+                const btn = document.getElementById('btnSync');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> SYNCING...`; btn.disabled = true;
+                
+                const unit = document.getElementById('unitSN').value.toUpperCase();
+                if(!unit) { alert("Please input Unit Serial Number"); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+                const payload = {
+                    nik: MY_NIK, unit_no: unit, inspection_date: document.getElementById('inspDate').value,
+                    report_data: {
+                        measurements: itemsRaw.map((_, i) => ({ lh: document.getElementById(`l_${i}`).value, rh: document.getElementById(`r_${i}`).value })),
+                        comments: document.getElementById('commentInp').value
+                    }
+                };
+                
+                try {
+                    const { error } = await sb.from('uc_reports').insert([payload]);
+                    if (error) throw error;
+                    await sb.from('activity_logs').insert([{ nik: MY_NIK, activity: "UC Report", details: `Unit: ${unit}` }]);
+                    alert("✅ REPORT SUBMITTED!"); 
+                    // Reset
+                    document.querySelectorAll('input[type="number"]').forEach(i => i.value = '');
+                    document.querySelectorAll('.worn-output').forEach(s => s.innerText = '-');
+                    document.getElementById('unitSN').value = '';
+                    if(document.getElementById('rightDrawer').classList.contains('open')) App.fetchHistory();
+                } catch (err) { alert("Sync Error: " + err.message); } 
+                finally { btn.innerHTML = originalText; btn.disabled = false; }
+            },
+
+            async fetchHistory() {
+                const container = document.getElementById('historyBody');
+                container.innerHTML = '<div class="text-center py-10 text-slate-400 text-xs font-bold"><div class="mint-spinner mx-auto mb-2" style="width:20px;height:20px"></div>Loading...</div>';
+                const { data } = await sb.from('uc_reports').select('*').eq('nik', MY_NIK).order('id', {ascending:false}).limit(15);
+                
+                container.innerHTML = (data || []).map(row => `
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-green-300 transition-all group">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="text-slate-800 font-black text-sm uppercase">${row.unit_no}</div>
+                                <div class="text-[10px] text-slate-400 font-mono mt-1">${new Date(row.inspection_date).toLocaleDateString()}</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick='App.loadEdit(${JSON.stringify(row)})' class="w-8 h-8 bg-green-50 text-green-600 rounded-lg border border-green-100 hover:bg-green-500 hover:text-white transition-all"><i class="fas fa-download text-xs"></i></button>
+                                <button onclick="App.delReport(${row.id})" class="w-8 h-8 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-500 hover:text-white transition-all"><i class="fas fa-trash text-xs"></i></button>
+                            </div>
+                        </div>
+                    </div>`).join('') || '<p class="text-slate-400 text-center py-10 font-bold text-xs">No reports found.</p>';
+            },
+
+            loadEdit(row) {
+                document.getElementById('unitSN').value = row.unit_no;
+                document.getElementById('commentInp').value = row.report_data.comments || "";
+                document.getElementById('inspDate').value = row.inspection_date;
+                row.report_data.measurements.forEach((m, i) => {
+                    if(i < itemsRaw.length) {
+                        if(document.getElementById(`l_${i}`)) { document.getElementById(`l_${i}`).value = m.lh; this.calc(i, 'l'); }
+                        if(document.getElementById(`r_${i}`)) { document.getElementById(`r_${i}`).value = m.rh; this.calc(i, 'r'); }
+                    }
+                });
+                toggleDrawer(); window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+
+            async delReport(id) {
+                if(confirm("Delete report?")) { 
+                    await sb.from('uc_reports').delete().eq('id', id); 
+                    this.fetchHistory(); 
+                }
+            }
+        };
+
+        // --- GLOBAL EXPORTS ---
+        window.App = App;
+        window.toggleDrawer = () => {
+            const drw = document.getElementById('rightDrawer');
+            const ovl = document.getElementById('drawerOverlay');
+            if(drw.classList.contains('open')) {
+                drw.classList.remove('open'); ovl.classList.remove('visible');
+            } else {
+                drw.classList.add('open'); ovl.classList.add('visible');
+                App.fetchHistory();
+            }
+        };
+        window.syncToCloud = () => App.syncToCloud();
+
+        // --- SCALER ---
+        function runAutoScale() {
+            const s = document.getElementById('scaler-context');
+            if(!s) return;
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            s.style.transform = `scale(${scaleRatio})`;
+            s.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * s.offsetHeight}px` : "0px";
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

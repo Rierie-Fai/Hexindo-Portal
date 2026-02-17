@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Portal Mecha | Hexindo Fleet</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f1f5f9">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('/mecha-version/login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --glass-bg: rgba(255, 255, 255, 0.8);
+            --glass-border: rgba(255, 255, 255, 1);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #f59e0b;
+            /* ULTIMATE SMOOTH BEZIER (Seperti iOS/Samsung 120Hz) */
+            --ease-fluid: cubic-bezier(0.19, 1, 0.22, 1); 
+        }
+
+        /* --- GLOBAL SMOOTHNESS --- */
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: 
+                linear-gradient(0deg, #cbd5e1 1px, transparent 1px), 
+                linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 40px 40px;
+            min-height: 100vh; color: var(--text-primary); margin: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            /* Hilangkan highlight tap biru di Android */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* MOMENTUM SCROLLING (Wajib untuk 120fps Scroll feel) */
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch; /* Kunci scrolling licin di iOS/Mobile */
+            scroll-behavior: smooth;
+            overscroll-behavior-y: contain; /* Mencegah scroll body ikut bergerak */
+        }
+
+        /* Sembunyikan Scrollbar tapi tetap bisa scroll */
+        .overflow-y-auto::-webkit-scrollbar { width: 4px; }
+        .overflow-y-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
+
+        #mecha-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; }
+
+        /* --- GPU ACCELERATION & ANIMATIONS --- */
+        .gpu-accel, #scaler-context, .drawer, .menu-card, #target-reticle {
+            transform: translate3d(0,0,0); /* Force GPU Layer */
+            backface-visibility: hidden;
+            perspective: 1000px;
+            will-change: transform; /* Beritahu browser elemen ini akan gerak */
+        }
+
+        #scaler-context { width: var(--base-width); transform-origin: top center; transition: transform 0.2s ease-out, opacity 0.8s ease; flex-shrink: 0; padding: 2rem; position: relative; z-index: 10; }
+        
+        .glass-mecha { background: var(--glass-bg); backdrop-filter: blur(16px) saturate(120%); border: 2px solid var(--glass-border); box-shadow: var(--glass-shadow); border-radius: 24px; position: relative; overflow: hidden; margin-bottom: 2rem; }
+        
+        .menu-card { 
+            display: flex; flex-direction: column; justify-content: space-between; min-height: 200px; padding: 2rem; 
+            border-left: 6px solid transparent; position: relative; z-index: 2;
+            transition: transform 0.4s var(--ease-fluid), border-color 0.3s ease !important;
+        }
+        .menu-card:hover { border-left-color: var(--accent-color); transform: translateY(-6px) translate3d(0,0,0); background: rgba(255,255,255,0.95); }
+        
+        .menu-icon { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1.5rem; background: rgba(245, 158, 11, 0.1); color: var(--accent-color); border: 1px solid rgba(245, 158, 11, 0.2); }
+        
+        .marquee-container { width: 100%; overflow: hidden; white-space: nowrap; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px 0; }
+        .marquee-text { display: inline-block; animation: marquee 25s linear infinite; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text-secondary); }
+        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+
+        /* --- DRAWERS (Optimized for 120fps) --- */
+        .drawer {
+            position: fixed; top: 0; height: 100%; width: 360px; max-width: 88%;
+            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(20px);
+            z-index: 50; display: flex; flex-direction: column;
+            transition: transform 0.6s var(--ease-fluid) !important; /* Super Smooth Transition */
+            box-shadow: 0 0 40px rgba(0,0,0,0.15);
+        }
+        
+        /* Initial States (Off-screen) */
+        #notifDrawer { right: 0; transform: translate3d(100%, 0, 0); border-left: 1px solid #e2e8f0; }
+        #chatDrawer { left: 0; transform: translate3d(-100%, 0, 0); border-right: 1px solid #e2e8f0; }
+        
+        /* Active State */
+        .drawer.open { transform: translate3d(0, 0, 0) !important; }
+        
+        #drawerOverlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);
+            z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.4s var(--ease-fluid);
+        }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+
+        /* --- ACTIVE TARGETING SYSTEM V3 --- */
+        .scan-target { position: relative; } 
+
+        #target-reticle {
+            position: absolute; top: 0; left: 0; z-index: 50; pointer-events: none;
+            transition: border-color 0.3s, opacity 0.3s;
+            border: 1px solid rgba(245, 158, 11, 0.6);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.2), inset 0 0 10px rgba(245, 158, 11, 0.1);
+            border-radius: 12px;
+            opacity: 0;
+        }
+        #target-reticle.active { opacity: 1; }
+
+        .corner { position: absolute; width: 8px; height: 8px; border-color: var(--accent-color); border-style: solid; transition: 0.2s; }
+        .t-l { top: -2px; left: -2px; border-width: 2px 0 0 2px; }
+        .t-r { top: -2px; right: -2px; border-width: 2px 2px 0 0; }
+        .b-l { bottom: -2px; left: -2px; border-width: 0 0 2px 2px; }
+        .b-r { bottom: -2px; right: -2px; border-width: 0 2px 2px 0; }
+
+        .scan-label {
+            position: absolute; bottom: -20px; right: 0;
+            font-size: 8px; font-weight: 900; color: var(--accent-color);
+            background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .locked { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important; }
+        .locked .corner { border-color: #ef4444; }
+        .locked .scan-label { color: #fff; background: #ef4444; }
+
+        /* Multi Scan Effect */
+        .temp-reticle {
+            position: absolute; z-index: 50; pointer-events: none;
+            border: 1px dashed rgba(16, 185, 129, 0.6);
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: 12px;
+            animation: flashScan 1.5s forwards;
+        }
+        @keyframes flashScan {
+            0% { opacity: 0; transform: scale(1.1); }
+            20% { opacity: 1; transform: scale(1); border-color: #fff; }
+            80% { opacity: 1; border-color: rgba(16, 185, 129, 0.6); }
+            100% { opacity: 0; transform: scale(1); }
+        }
+
+        /* --- Loader --- */
+        #splash-screen { position: fixed; inset: 0; background: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; transition: opacity 0.5s; }
+        .loader-mecha { width: 80px; height: 80px; border: 6px solid #e2e8f0; border-top: 6px solid var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <canvas id="mecha-canvas"></canvas>
+
+    <div id="drawerOverlay" onclick="App.closeAllDrawers()"></div>
+
+    <aside id="notifDrawer" class="drawer">
+        <div class="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
+            <div>
+                <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider"><i class="fas fa-bell mr-2 text-amber-500"></i>Notifications</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ACCESS REQUESTS</p>
+            </div>
+            <button onclick="App.toggleDrawer('notifDrawer')" class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="notifList" class="flex-1 overflow-y-auto p-4 space-y-3"><div class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-slate-300"></i></div></div>
+    </aside>
+
+    <aside id="chatDrawer" class="drawer bg-slate-50 flex flex-col">
+        <div class="p-5 border-b border-slate-200 bg-white flex justify-between items-center shadow-sm z-10 sticky top-0">
+            <div class="flex items-center gap-3">
+                <button id="btnBackToContacts" onclick="App.showContactList()" class="hidden w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-all active:scale-95"><i class="fas fa-arrow-left"></i></button>
+                <div>
+                    <h3 id="chatHeaderTitle" class="text-sm font-black text-slate-800 uppercase tracking-wider">COMMS CENTER</h3>
+                    <p id="chatHeaderSubtitle" class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">SELECT FREQUENCY</p>
+                </div>
+            </div>
+            <button onclick="App.toggleDrawer('chatDrawer')" class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all active:scale-95"><i class="fas fa-times"></i></button>
+        </div>
+
+        <div id="contactListView" class="flex-1 overflow-y-auto p-4 space-y-2">
+            <div onclick="App.openChat('ALL')" class="p-4 bg-white border-l-4 border-blue-500 rounded-xl shadow-sm cursor-pointer hover:bg-blue-50 transition-all active:scale-[0.98] group">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl"><i class="fas fa-globe"></i></div>
+                        <div><h4 class="text-sm font-bold text-slate-700 uppercase group-hover:text-blue-700">GLOBAL FREQUENCY</h4><p class="text-[10px] text-slate-400 font-mono">BROADCAST TO ALL UNITS</p></div>
+                    </div>
+                    <i class="fas fa-chevron-right text-slate-300 text-xs"></i>
+                </div>
+            </div>
+            <div class="mt-6 mb-3"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">ACTIVE PERSONNEL</p></div>
+            <div id="userListContainer" class="space-y-2"><div class="text-center py-4"><i class="fas fa-spinner fa-spin text-slate-300"></i></div></div>
+        </div>
+        
+        <div id="chatRoomView" class="hidden flex-1 flex flex-col bg-[#e5e7eb]" style="background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px;">
+            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-2 pb-20"></div>
+            <div class="p-3 bg-white border-t border-slate-200 sticky bottom-0 z-20 shadow-lg">
+                <form id="chatForm" class="flex gap-2 items-center">
+                    <input type="text" id="chatInput" class="flex-1 px-5 py-3 text-sm font-medium bg-slate-100 border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-slate-400" placeholder="Transmitting..." autocomplete="off">
+                    <button type="submit" class="w-12 h-12 bg-slate-800 text-white rounded-xl hover:bg-amber-500 hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center active:scale-90"><i class="fas fa-paper-plane"></i></button>
+                </form>
+            </div>
+        </div>
+    </aside>
+
+    <div id="splash-screen">
+        <div class="loader-mecha"></div>
+        <div class="mt-8 text-center">
+            <h1 class="text-4xl font-black text-slate-800 uppercase italic tracking-tighter">HEXINDO <span class="text-amber-500">FLEET</span></h1>
+            <p id="status-text" class="text-slate-500 text-sm font-mono font-bold tracking-widest mt-2">INITIALIZING SYSTEM...</p>
+        </div>
+        <div class="mt-10 w-64 h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div id="splashProgress" class="h-full bg-amber-500 w-0 transition-all duration-500"></div>
+        </div>
+    </div>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <div id="target-reticle">
+            <div class="corner t-l"></div><div class="corner t-r"></div><div class="corner b-l"></div><div class="corner b-r"></div>
+            <div class="scan-label">SCANNING...</div>
+        </div>
+
+        <header class="scan-target glass-mecha p-8 !rounded-[2.5rem] border-b-8 border-amber-500 relative z-20 bg-white/80">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-6">
+                    <button onclick="App.toggleDrawer('chatDrawer')" class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-slate-400 text-xl border border-slate-200 hover:text-blue-500 shadow-sm transition-all relative active:scale-90">
+                        <i class="fas fa-comment-dots"></i>
+                        <span id="chatBadge" class="absolute top-3 right-3 w-3 h-3 bg-blue-500 rounded-full border-2 border-white hidden animate-bounce"></span>
+                    </button>
+                    <div>
+                        <h1 class="text-3xl font-black text-slate-800 italic uppercase tracking-tight">HEXINDO <span class="text-amber-500">PORTAL</span></h1>
+                        <div class="flex items-center gap-3 mt-2">
+                            <div class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+                            <p class="text-sm text-slate-500 font-bold uppercase tracking-wider">SYSTEM ONLINE</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="notifBtn" onclick="App.toggleDrawer('notifDrawer')" class="hidden relative w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-slate-400 text-xl border border-slate-200 hover:text-blue-500 shadow-sm transition-all active:scale-90">
+                        <i class="fas fa-bell"></i>
+                        <span id="notifBadge" class="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-white hidden"></span>
+                    </button>
+                    <a href="/mecha-version/setting.html" class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-slate-400 text-xl border border-slate-200 hover:text-amber-500 shadow-sm active:scale-90 transition-transform"><i class="fas fa-cog"></i></a>
+                    <button onclick="App.logout()" class="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-400 text-xl border border-red-100 hover:bg-red-500 hover:text-white shadow-sm active:scale-90 transition-transform"><i class="fas fa-power-off"></i></button>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-between items-end border-t-2 border-slate-100 pt-6">
+                <div>
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">CURRENT USER</p>
+                    <p id="userNameDisplay" class="text-2xl font-black text-slate-800 uppercase tracking-tight">LOADING...</p>
+                </div>
+                <div class="text-right">
+                    <p id="userNikDisplay" class="text-lg font-mono font-bold text-amber-700 bg-amber-100 px-4 py-2 rounded-lg border border-amber-200">NIK: ------</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="mb-8 relative z-10">
+            <div class="flex justify-between items-center mb-3 px-2">
+                <span id="roleBadge" class="text-sm font-bold text-slate-600 uppercase bg-slate-200 px-3 py-1.5 rounded-lg tracking-wide">...</span>
+                <span id="liveDate" class="text-sm font-bold text-slate-500 uppercase tracking-wide">...</span>
+            </div>
+            <div class="marquee-container">
+                <h2 class="marquee-text uppercase">WELCOME TO HEXINDO FLEET PRO SYSTEM — AUTHORIZED PERSONNEL ONLY — ALWAYS CHECK YOUR TOOLS BEFORE OPERATION —</h2>
+            </div>
+        </div>
+
+        <div class="scan-target glass-mecha p-8 text-center relative z-10">
+            <div class="inline-block relative">
+                <h3 id="liveTime" class="text-7xl font-black text-slate-800 tracking-tight leading-none" style="font-family: 'JetBrains Mono'; font-variant-numeric: tabular-nums;">00:00:00</h3>
+            </div>
+            <p class="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mt-3">LOCAL TERMINAL TIME</p>
+        </div>
+
+        <div id="adminSection" class="hidden mb-8 relative z-10">
+            <a href="/mecha-version/admin.html" class="scan-target glass-mecha p-6 border-2 border-slate-200 flex items-center justify-between hover:border-amber-400 group">
+                <div class="flex items-center gap-6">
+                    <div class="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-user-shield"></i></div>
+                    <div><h2 class="text-lg font-black text-slate-800 uppercase italic tracking-wider group-hover:text-amber-600 transition-colors">ADMIN CONSOLE</h2><p class="text-xs font-bold text-slate-400 uppercase">Manage System Access</p></div>
+                </div>
+                <i class="fas fa-chevron-right text-2xl text-slate-300 group-hover:text-amber-500 transition-colors"></i>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 pb-12 relative z-10">
+            <a href="/mecha-version/pump-tuning.html" class="scan-target glass-mecha menu-card group">
+                <div class="menu-icon text-blue-600 bg-blue-50 border-blue-200 group-hover:bg-blue-500 group-hover:text-white transition-all"><i class="fas fa-tachometer-alt"></i></div>
+                <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-blue-600 transition-colors">HYDRAULIC</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Pump Tuning System</p></div>
+            </a>
+            <a href="/mecha-version/dar.html" class="scan-target glass-mecha menu-card group">
+                <div class="menu-icon text-emerald-600 bg-emerald-50 border-emerald-200 group-hover:bg-emerald-500 group-hover:text-white transition-all"><i class="fas fa-clipboard-list"></i></div>
+                <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-emerald-600 transition-colors">ACTIVITY</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Daily Log Report</p></div>
+            </a>
+            <a href="/mecha-version/ppu.html" class="scan-target glass-mecha menu-card group">
+                <div class="menu-icon text-amber-600 bg-amber-50 border-amber-200 group-hover:bg-amber-500 group-hover:text-white transition-all"><i class="fas fa-tractor"></i></div>
+                <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-amber-600 transition-colors">UNDERCARRIAGE</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Inspection Tool</p></div>
+            </a>
+            <a href="/mecha-version/toolbox.html" class="scan-target glass-mecha menu-card group">
+                <div class="menu-icon text-slate-600 bg-slate-100 border-slate-300 group-hover:bg-slate-700 group-hover:text-white transition-all"><i class="fas fa-tools"></i></div>
+                <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-slate-700 transition-colors">TOOLBOX</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Checklist Pro</p></div>
+            </a>
+        </div>
+        <footer class="text-center py-8 relative z-10"><p class="text-slate-400 text-xs uppercase font-bold tracking-[0.3em]">© 2026 HEXINDO ADARO PROJECT</p></footer>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E",
+            TARGET_WIDTH: 720
+        };
+
+        // --- PARTICLE ENGINE (Delta Time Fixed for 120fps) ---
+        class ParticleEngine {
+            constructor() {
+                this.canvas = document.getElementById('mecha-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = []; this.qty = 80; this.lastTime = 0;
+                this.resize(); window.addEventListener('resize', () => this.resize());
+                this.init(); requestAnimationFrame((t) => this.animate(t));
+            }
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            init() { this.particles = Array.from({ length: this.qty }, () => new Particle(this.canvas)); }
+            animate(timestamp) {
+                const dt = (timestamp - this.lastTime) / 16.67; this.lastTime = timestamp;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.particles.forEach(p => { p.update(dt); p.draw(this.ctx); });
+                requestAnimationFrame((t) => this.animate(t));
+            }
+        }
+        class Particle {
+            constructor(canvas) { this.canvas = canvas; this.reset(); }
+            reset() {
+                this.x = Math.random() * this.canvas.width;
+                this.y = Math.random() * this.canvas.height;
+                this.size = Math.random() * 2 + 1; this.speedY = (Math.random() * 0.5 + 0.2); this.opacity = Math.random() * 0.4 + 0.1; 
+            }
+            update(dt) {
+                this.y -= this.speedY * dt; // Flow Upward for 120fps feel
+                if (this.y < 0) { this.y = this.canvas.height; this.x = Math.random() * this.canvas.width; }
+            }
+            draw(ctx) {
+                ctx.fillStyle = `rgba(148, 163, 184, ${this.opacity})`; ctx.beginPath(); ctx.rect(this.x, this.y, this.size, this.size * 2); ctx.fill();
+            }
+        }
+
+        // --- APP LOGIC ---
+        const App = {
+            sb: supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY),
+            userNik: localStorage.getItem('userNIK'),
+            activeChat: null,
+
+            async init() {
+                new ParticleEngine();
+                this.updateTime(); setInterval(() => this.updateTime(), 1000);
+                
+                this.runAutoScale(); 
+                window.addEventListener('resize', () => {
+                    this.runAutoScale();
+                    const reticle = document.getElementById('target-reticle');
+                    if(reticle) reticle.classList.remove('active');
+                });
+                
+                this.initScanner();
+                await this.loadSession();
+                this.initChatSystem();
+            },
+
+            // --- SCANNER V3 (Fixed Coordinates) ---
+            initScanner() {
+                const reticle = document.getElementById('target-reticle');
+                const label = document.querySelector('.scan-label');
+                const container = document.getElementById('scaler-context');
+                let curr = { x: 0, y: 0, w: 0, h: 0 };
+                let target = { x: 0, y: 0, w: 0, h: 0 };
+                let isLocked = false;
+
+                const lerp = (start, end, factor) => start + (end - start) * factor;
+
+                const animateReticle = () => {
+                    if (!isLocked) {
+                        curr.x = lerp(curr.x, target.x, 0.15); curr.y = lerp(curr.y, target.y, 0.15);
+                        curr.w = lerp(curr.w, target.w, 0.15); curr.h = lerp(curr.h, target.h, 0.15);
+                        reticle.style.transform = `translate3d(${curr.x}px, ${curr.y}px, 0)`; // GPU Force
+                        reticle.style.width = `${curr.w}px`; reticle.style.height = `${curr.h}px`;
+                    }
+                    requestAnimationFrame(animateReticle);
+                };
+                animateReticle();
+
+                const getPreciseCoords = (el) => {
+                    const tRect = el.getBoundingClientRect();
+                    const cRect = container.getBoundingClientRect();
+                    const scale = tRect.width / el.offsetWidth;
+                    return { x: (tRect.left - cRect.left) / scale, y: (tRect.top - cRect.top) / scale, w: el.offsetWidth, h: el.offsetHeight };
+                };
+
+                const runLogic = () => {
+                    const domTargets = Array.from(document.querySelectorAll('.scan-target')).filter(el => el.offsetParent !== null);
+                    if (domTargets.length === 0) return;
+
+                    if (Math.random() < 0.2) {
+                        reticle.classList.remove('active');
+                        domTargets.forEach(el => {
+                            const pos = getPreciseCoords(el);
+                            const ghost = document.createElement('div');
+                            ghost.className = 'temp-reticle';
+                            ghost.style.left = `${pos.x}px`; ghost.style.top = `${pos.y}px`;
+                            ghost.style.width = `${pos.w}px`; ghost.style.height = `${pos.h}px`;
+                            ghost.innerHTML = `<div class="absolute -top-3 left-0 text-[8px] font-bold text-emerald-500 font-mono bg-black/50 px-1 rounded">SYS_OK</div>`;
+                            container.appendChild(ghost);
+                            setTimeout(() => ghost.remove(), 1500);
+                        });
+                    } else {
+                        const chosen = domTargets[Math.floor(Math.random() * domTargets.length)];
+                        const coords = getPreciseCoords(chosen);
+                        const pad = 12;
+                        target.x = coords.x - (pad/2); target.y = coords.y - (pad/2);
+                        target.w = coords.w + pad; target.h = coords.h + pad;
+
+                        reticle.classList.add('active'); reticle.classList.remove('locked');
+                        label.innerText = "TRACKING..."; isLocked = false;
+                        
+                        setTimeout(() => { reticle.classList.add('locked'); label.innerText = "LOCKED"; }, 500);
+                        setTimeout(() => { reticle.classList.remove('active'); }, 2500);
+                    }
+                    setTimeout(runLogic, Math.random() * 2000 + 3000);
+                };
+                setTimeout(runLogic, 1000);
+            },
+
+            async loadSession() {
+                const progress = document.getElementById('splashProgress');
+                try {
+                    if (progress) progress.style.width = "30%";
+                    if (!this.userNik) throw new Error("No active session");
+                    const { data: user, error } = await this.sb.from('users').select('*').eq('nik', this.userNik).single();
+                    if (error || !user) throw new Error("Auth Failed");
+                    if (progress) progress.style.width = "70%";
+                    document.getElementById('userNameDisplay').innerText = user.full_name;
+                    document.getElementById('userNikDisplay').innerText = `NIK: ${user.nik}`;
+                    const roleBadge = document.getElementById('roleBadge');
+                    if (user.role === 'admin') {
+                        document.getElementById('adminSection')?.classList.remove('hidden');
+                        document.getElementById('notifBtn')?.classList.remove('hidden');
+                        if(roleBadge) { roleBadge.innerHTML = '<i class="fas fa-shield-alt mr-2"></i>ADMIN ACCESS'; roleBadge.className = "text-sm font-bold text-amber-700 uppercase bg-amber-100 px-4 py-2 rounded-lg tracking-wide border border-amber-200 shadow-sm"; }
+                        this.loadNotifications();
+                    } else {
+                        if(roleBadge) roleBadge.innerHTML = '<i class="fas fa-wrench mr-2"></i>TECHNICIAN';
+                    }
+                    this.hideSplash();
+                } catch (err) { console.error(err); this.logout(); }
+            },
+
+            initChatSystem() {
+                this.loadContacts();
+                this.sb.channel('public:messages').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => { this.handleIncomingMessage(payload.new); }).subscribe();
+                document.getElementById('chatForm').onsubmit = (e) => { e.preventDefault(); this.sendMessage(); };
+            },
+
+            async loadContacts() {
+                const { data: users } = await this.sb.from('users').select('nik, full_name').neq('nik', this.userNik).eq('status', 'active').order('full_name');
+                const list = document.getElementById('userListContainer');
+                if (!users || users.length === 0) { list.innerHTML = `<div class="text-center text-[10px] text-slate-400 font-mono py-4">NO ACTIVE PERSONNEL</div>`; return; }
+                list.innerHTML = users.map(u => `<div onclick="App.openChat('${u.nik}', '${u.full_name}')" class="p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all flex items-center justify-between group active:scale-[0.98]"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center border border-slate-200 font-mono">${u.nik.substring(0,2)}</div><div><h5 class="text-xs font-bold text-slate-700 uppercase">${u.full_name}</h5><p class="text-[9px] text-slate-400 font-mono flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ONLINE</p></div></div><i class="fas fa-comment-alt text-slate-300 group-hover:text-amber-500 text-xs"></i></div>`).join('');
+            },
+
+            openChat(targetNik, targetName = "GLOBAL CHANNEL") {
+                this.activeChat = targetNik;
+                document.getElementById('contactListView').classList.add('hidden');
+                document.getElementById('chatRoomView').classList.remove('hidden');
+                document.getElementById('btnBackToContacts').classList.remove('hidden');
+                document.getElementById('chatHeaderTitle').innerText = targetName;
+                document.getElementById('chatHeaderSubtitle').innerText = targetNik === 'ALL' ? 'PUBLIC BROADCAST' : `ENCRYPTED: ${targetNik}`;
+                this.loadMessages();
+            },
+
+            showContactList() {
+                this.activeChat = null;
+                document.getElementById('contactListView').classList.remove('hidden');
+                document.getElementById('chatRoomView').classList.add('hidden');
+                document.getElementById('btnBackToContacts').classList.add('hidden');
+                document.getElementById('chatHeaderTitle').innerText = 'COMMS CENTER';
+                document.getElementById('chatHeaderSubtitle').innerText = 'SELECT FREQUENCY';
+            },
+
+            async loadMessages() {
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = `<div class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-slate-400"></i></div>`;
+                let query = this.sb.from('messages').select('*').order('created_at', { ascending: true });
+                if (this.activeChat === 'ALL') query = query.eq('receiver_nik', 'ALL');
+                else query = query.or(`and(sender_nik.eq.${this.userNik},receiver_nik.eq.${this.activeChat}),and(sender_nik.eq.${this.activeChat},receiver_nik.eq.${this.userNik})`);
+                const { data } = await query.limit(50);
+                container.innerHTML = '';
+                if(data && data.length > 0) data.forEach(msg => this.renderMessageBubble(msg));
+                else container.innerHTML = `<div class="text-center text-xs text-slate-400 mt-10 font-mono opacity-50">CHANNEL ESTABLISHED. NO LOGS.</div>`;
+                this.scrollToBottom();
+            },
+
+            handleIncomingMessage(msg) {
+                if (msg.receiver_nik === 'ALL') {
+                    if (this.activeChat === 'ALL') this.renderMessageBubble(msg); else this.showChatBadge();
+                } else if (msg.receiver_nik === this.userNik) {
+                    if (this.activeChat === msg.sender_nik) this.renderMessageBubble(msg); else this.showChatBadge();
+                }
+            },
+
+            async sendMessage() {
+                const input = document.getElementById('chatInput');
+                const text = input.value.trim(); if(!text || !this.activeChat) return;
+                const tempMsg = { sender_nik: this.userNik, content: text, created_at: new Date().toISOString() };
+                this.renderMessageBubble(tempMsg); input.value = '';
+                await this.sb.from('messages').insert([{ sender_nik: this.userNik, receiver_nik: this.activeChat, content: text }]);
+                this.scrollToBottom();
+            },
+
+            renderMessageBubble(msg) {
+                const container = document.getElementById('chatMessages');
+                const isMe = msg.sender_nik === this.userNik;
+                if(container.innerText.includes('CHANNEL ESTABLISHED')) container.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = `max-w-[85%] p-3 rounded-2xl mb-2 text-sm relative shadow-sm animate-fade-in ${isMe ? 'self-end bg-slate-800 text-white rounded-br-none' : 'self-start bg-white text-slate-700 border border-slate-200 rounded-bl-none'}`;
+                div.innerHTML = `<div class="font-bold text-[9px] uppercase mb-1 tracking-wider ${isMe ? 'text-amber-500' : 'text-blue-500'}">${isMe ? 'YOU' : msg.sender_nik}</div><div class="leading-relaxed break-words">${msg.content}</div><div class="text-[9px] text-right mt-1 opacity-60 font-mono">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>`;
+                container.appendChild(div); this.scrollToBottom();
+            },
+
+            scrollToBottom() { const c = document.getElementById('chatMessages'); c.scrollTop = c.scrollHeight; },
+            showChatBadge() { const b = document.getElementById('chatBadge'); if(b) { b.classList.remove('hidden'); b.classList.add('animate-bounce'); } },
+
+            toggleDrawer(id) {
+                const d = document.getElementById(id), o = document.getElementById('drawerOverlay');
+                const open = d.classList.contains('open'); this.closeAllDrawers();
+                if (!open) { d.classList.add('open'); o.classList.add('visible'); if(id === 'chatDrawer') { document.getElementById('chatBadge').classList.add('hidden'); if(!this.activeChat) this.loadContacts(); } }
+            },
+            closeAllDrawers() { document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open')); document.getElementById('drawerOverlay').classList.remove('visible'); },
+            
+            updateTime() { const now = new Date(); document.getElementById('liveTime').innerText = now.toLocaleTimeString('en-GB', { hour12: false }); document.getElementById('liveDate').innerText = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(); },
+            runAutoScale() { const s = document.getElementById('scaler-context'); if(!s) return; const w = window.innerWidth; const r = w < CONFIG.TARGET_WIDTH ? w/CONFIG.TARGET_WIDTH : 1; s.style.transform = `scale(${r})`; s.style.marginBottom = w < CONFIG.TARGET_WIDTH ? `-${(1-r)*s.offsetHeight}px` : "0px"; },
+            async hideSplash() { const s = document.getElementById('splash-screen'), c = document.getElementById('scaler-context'), p = document.getElementById('splashProgress'); if (p) p.style.width = "100%"; await new Promise(r => setTimeout(r, 600)); if (s) s.style.opacity = "0"; setTimeout(() => { if (s) s.style.display = 'none'; if (c) c.classList.remove('opacity-0'); this.runAutoScale(); }, 500); },
+            logout() { if (confirm("Disconnect Current Session?")) { localStorage.clear(); window.location.replace('/mecha-version/login.html'); } },
+
+            async loadNotifications() {
+                const b = document.getElementById('notifBadge'), l = document.getElementById('notifList');
+                const { data: r } = await this.sb.from('users').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+                if (r && r.length > 0) { b.classList.remove('hidden'); l.innerHTML = r.map(q => `<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3" id="req-${q.nik}"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-user-plus"></i></div><div><p class="text-sm font-bold text-slate-700 uppercase">${q.full_name}</p><p class="text-[10px] text-slate-400 font-mono">NIK: ${q.nik}</p></div></div><div class="flex gap-2"><button onclick="App.handleRequest('${q.nik}', 'approve')" class="flex-1 py-2 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase">Accept</button><button onclick="App.handleRequest('${q.nik}', 'reject')" class="flex-1 py-2 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase">Reject</button></div></div>`).join(''); } else { b.classList.add('hidden'); l.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs font-bold uppercase">No Pending Requests</div>`; }
+            },
+            async handleRequest(nik, act) {
+                const el = document.getElementById(`req-${nik}`); if(el) el.style.opacity = '0.5';
+                if (act === 'approve') { const { error } = await this.sb.from('users').update({ status: 'active' }).eq('nik', nik); if (!error) { alert(`✅ User ${nik} Authorized!`); this.loadNotifications(); } }
+                else { const { error } = await this.sb.from('users').delete().eq('nik', nik); if (!error) { alert(`🚫 User ${nik} Rejected.`); this.loadNotifications(); } }
+            }
+        };
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(err => console.log('Sync Failed:', err)); }); }
+    </script>
+</body>
+</html>

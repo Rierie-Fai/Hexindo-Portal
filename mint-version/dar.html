@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Activity Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/xlsx.full.min.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <script src="/js/jspdf.umd.min.js"></script>
+    <script src="/js/jspdf.plugin.autotable.min.js"></script>
+    
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet"
+    <link href="/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* --- CORE STYLES --- */
+        :root {
+            --base-width: 720px;
+            --mint-primary: #87cf3a;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.85);
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; 
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10;
+            /* HAPUS TRANSITION OPACITY DISINI AGAR TIDAK BLANK */
+        }
+
+        /* --- COMPONENTS --- */
+        .glass-panel { 
+            background: var(--mint-glass); 
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 15px 40px -10px rgba(135, 207, 58, 0.15);
+            border-radius: 32px; overflow: hidden;
+            transition: transform 0.4s var(--ease-out-expo);
+        }
+
+        .input-mint { 
+            border: 2px solid transparent; border-radius: 20px; font-weight: 600; width: 100%; 
+            padding: 14px 20px; background: rgba(255, 255, 255, 0.6); font-size: 15px;
+            outline: none; transition: 0.3s; color: var(--mint-dark); 
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+        .input-mint:focus { border-color: var(--mint-primary); background: #ffffff; }
+
+        .label-mint {
+            font-size: 11px; font-weight: 700; color: #64748b; 
+            text-transform: uppercase; display: block; margin-bottom: 6px; margin-left: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .btn-mint {
+            display: inline-flex; align-items: center; justify-content: center; 
+            cursor: pointer; border-radius: 20px; transition: all 0.3s;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .btn-mint:active { transform: scale(0.95); }
+
+        .history-card {
+            background: rgba(255, 255, 255, 0.9); border-radius: 32px; border: 1px solid white;
+            box-shadow: 0 10px 20px -5px rgba(0,0,0,0.05); margin-bottom: 1.5rem; overflow: hidden;
+        }
+        
+        .description-text { white-space: pre-wrap; font-size: 14px; color: #334155; line-height: 1.6; }
+
+        /* --- DRAWER --- */
+        #filterDrawer {
+            position: fixed; top: 0; right: 0; height: 100%; width: 360px; z-index: 50;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+            transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; border-radius: 32px 0 0 32px; 
+            box-shadow: -10px 0 40px rgba(0,0,0,0.1);
+        }
+        #filterDrawer.open { transform: translateX(0); }
+        #drawerOverlay {
+            position: fixed; inset: 0; background: rgba(47, 52, 63, 0.3); z-index: 49;
+            backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.4s;
+        }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+
+        /* --- LOADER --- */
+        #splash-screen { 
+            position: fixed; inset: 0; background: #f0fdf4; z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+        .mint-spinner { width: 50px; height: 50px; border-radius: 50%; border: 5px solid #dcfce7; border-top-color: var(--mint-primary); animation: spin 0.8s infinite linear; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <p class="mt-4 text-xs font-bold text-green-600 uppercase tracking-widest">Loading Activity...</p>
+    </div>
+
+    <div id="drawerOverlay" onclick="toggleFilterDrawer()"></div>
+    <aside id="filterDrawer">
+        <div class="p-6 bg-green-50/50 flex justify-between items-center border-b border-green-100">
+            <div>
+                <h3 class="text-lg font-bold text-slate-700">Filter Database</h3>
+                <p class="text-[10px] text-slate-400 uppercase tracking-wide font-bold">Search Parameters</p>
+            </div>
+            <button onclick="toggleFilterDrawer()" class="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-red-500 shadow-sm"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-5 flex-1 overflow-y-auto">
+            <div><label class="label-mint">Keyword</label><input type="text" id="filterKeyword" class="input-mint" placeholder="Search..."></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="label-mint">From</label><input type="date" id="filterDateStart" class="input-mint"></div>
+                <div><label class="label-mint">To</label><input type="date" id="filterDateEnd" class="input-mint"></div>
+            </div>
+            <div>
+                <label class="label-mint">Status</label>
+                <select id="filterStatus" class="input-mint bg-white"><option value="all">Show All</option><option value="synced">Synced Cloud</option><option value="local">Local Drafts</option></select>
+            </div>
+        </div>
+        <div class="p-5 border-t border-slate-100 flex gap-3">
+            <button onclick="resetFilter()" class="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-500 font-bold text-xs uppercase">Reset</button>
+            <button onclick="applyFilter()" class="flex-1 py-3 rounded-2xl bg-green-500 text-white font-bold text-xs uppercase shadow-lg hover:bg-green-600">Apply</button>
+        </div>
+    </aside>
+
+    <div id="scaler-context">
+        
+        <header class="glass-panel p-6 flex justify-between items-center mb-6 bg-[#2f343f] !text-white border-none shadow-xl">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-tight">ACTIVITY <span class="text-green-400">LOG</span></h1>
+                    <p class="text-[10px] font-mono text-slate-400 tracking-widest uppercase mt-1">Daily Report</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleFilterDrawer()" class="h-10 w-10 bg-slate-700 rounded-xl flex items-center justify-center text-slate-300 hover:text-white"><i class="fas fa-filter"></i></button>
+                <div class="h-8 w-px bg-slate-600 mx-1"></div>
+                <button onclick="exportToPDF()" class="h-10 w-10 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all"><i class="fas fa-file-pdf"></i></button>
+                <button onclick="exportToExcel()" class="h-10 w-10 bg-green-500/20 text-green-400 rounded-xl hover:bg-green-500 hover:text-white transition-all"><i class="fas fa-file-excel"></i></button>
+            </div>
+        </header>
+
+        <div class="glass-panel p-8 mb-8">
+            <input type="hidden" id="editId">
+            <div class="flex justify-between items-center mb-6">
+                <span class="text-xs font-bold text-green-600 uppercase tracking-widest bg-green-100 px-3 py-1 rounded-full">New Entry</span>
+                <div class="flex gap-3">
+                    <button onclick="pullFromCloud()" id="btnPull" class="text-[10px] font-bold text-blue-500 uppercase hover:underline flex items-center gap-1"><i class="fas fa-download"></i> Pull</button>
+                    <button onclick="syncToCloud()" id="btnSyncSmall" class="text-[10px] font-bold text-amber-500 uppercase hover:underline flex items-center gap-1"><i class="fas fa-upload"></i> Push</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div><label class="label-mint">Technician</label><div class="flex gap-2"><input type="text" id="nameInp" class="input-mint !bg-slate-100 !text-slate-500" readonly><input type="text" id="nikInp" class="input-mint !bg-slate-100 !text-slate-500 w-24 text-center font-mono" readonly></div></div>
+                <div><label class="label-mint">Date</label><input type="date" id="dateInp" class="input-mint"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div><label class="label-mint">Customer</label><input type="text" id="customerInp" class="input-mint" placeholder="PT Adaro"></div>
+                <div><label class="label-mint">Location</label><input type="text" id="locationInp" class="input-mint" placeholder="Pit North"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-5 mb-6">
+                <div><label class="label-mint">Model</label><input type="text" id="modelInp" class="input-mint text-green-600 font-bold" placeholder="EX3600-6"></div>
+                <div><label class="label-mint">Serial No</label><input type="text" id="snInp" class="input-mint font-mono" placeholder="SN..."></div>
+                <div><label class="label-mint">HM</label><input type="number" step="0.1" id="hmInp" class="input-mint font-mono" placeholder="0.0"></div>
+                <div><label class="label-mint">Job Title</label><input type="text" id="jobDescInp" class="input-mint font-bold text-blue-600" placeholder="e.g. PM 250H"></div>
+            </div>
+
+            <div class="border-t-2 border-dashed border-slate-200 pt-6 mb-6">
+                 <span class="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-4 ml-2">Timeline Details</span>
+                <div id="detailRowsContainer" class="space-y-4"></div>
+            </div>
+            
+            <div class="flex flex-col gap-3">
+                <button onclick="smartAddTask()" class="btn-mint w-full bg-slate-100 text-slate-500 py-3 rounded-2xl hover:bg-white border-2 border-slate-200 border-dashed"><i class="fas fa-plus mr-2"></i> Add Sequence</button>
+                <button id="submitBtn" onclick="submitLog()" class="btn-mint w-full bg-green-500 text-white py-4 rounded-2xl shadow-lg hover:bg-green-600 hover:-translate-y-1">SUBMIT REPORT</button>
+            </div>
+        </div>
+
+        <div id="masterList" class="pb-12 space-y-6"></div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E",
+            STORAGE_KEY: "techLogs_v5_mint"
+        };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        
+        let isEditMode = false;
+        let currentFilter = { keyword: "", startDate: "", endDate: "", status: "all" };
+        const userNik = localStorage.getItem('userNIK');
+        const userName = localStorage.getItem('userName'); 
+
+        // --- SAFE INITIALIZATION ---
+        const App = {
+            async init() {
+                // 1. Force Remove Splash Screen after 2 seconds (Failsafe)
+                setTimeout(() => {
+                    const splash = document.getElementById('splash-screen');
+                    if(splash) splash.style.display = 'none';
+                }, 2000);
+
+                try {
+                    // 2. Setup UI
+                    if (!userName) {
+                         // Load user data async but don't block UI
+                         sb.from('users').select('full_name').eq('nik', userNik).single()
+                           .then(({ data }) => { if (data) localStorage.setItem('userName', data.full_name); document.getElementById('nameInp').value = data.full_name; });
+                    }
+                    
+                    document.getElementById('nameInp').value = localStorage.getItem('userName') || 'Technician';
+                    document.getElementById('nikInp').value = userNik;
+                    document.getElementById('dateInp').valueAsDate = new Date();
+                    
+                    if(!document.getElementById('detailRowsContainer').children.length) addDetailRow();
+                    
+                    // 3. Load Data Safely
+                    refreshTable(); 
+                    
+                    // 4. Auto Scale
+                    runAutoScale();
+                    window.addEventListener('resize', runAutoScale);
+
+                    // 5. Hide Splash Immediately (UI Ready)
+                    document.getElementById('splash-screen').style.opacity = '0';
+                    setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500);
+
+                } catch (e) {
+                    console.error("Init Warning:", e);
+                    // Force reveal UI on error
+                    document.getElementById('splash-screen').style.display = 'none';
+                }
+            }
+        };
+
+        function runAutoScale() {
+            const scaler = document.getElementById('scaler-context');
+            if(!scaler) return;
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            scaler.style.transform = `scale(${scaleRatio})`;
+            scaler.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * scaler.offsetHeight}px` : `0px`;
+        }
+
+        // --- DATA & UI LOGIC ---
+        function toggleFilterDrawer() {
+            document.getElementById('filterDrawer').classList.toggle('open');
+            document.getElementById('drawerOverlay').classList.toggle('visible');
+        }
+
+        function safeJSONParse(str) {
+            try { return JSON.parse(str) || []; } catch (e) { return []; }
+        }
+
+        function formatBullet(text) {
+            if (!text) return "";
+            return text.split('\n').map(l => l.trim()).filter(l => l !== "").map(l => l.startsWith('•') ? l : `• ${l}`).join('\n');
+        }
+
+        function addDetailRow(timeF = '', timeT = '', desc = '') {
+            const container = document.getElementById('detailRowsContainer');
+            const div = document.createElement('div');
+            div.className = "flex gap-3 items-start bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm relative";
+            div.innerHTML = `
+                <div class="absolute left-0 top-4 bottom-4 w-1.5 bg-green-400 rounded-r-full"></div>
+                <div class="w-24 flex-shrink-0 flex flex-col gap-2 pl-2">
+                    <input type="time" class="input-mint text-center !p-2 text-xs font-mono !bg-white border-slate-300" value="${timeF}">
+                    <input type="time" class="input-mint text-center !p-2 text-xs font-mono !bg-white border-slate-300" value="${timeT}">
+                </div>
+                <div class="flex-1">
+                    <textarea class="input-mint !p-3 min-h-[90px] text-sm !bg-white border-slate-300 !rounded-xl" placeholder="Describe progress here...">${desc}</textarea>
+                </div>
+                <button onclick="this.parentElement.remove()" class="w-8 h-8 rounded-full bg-white text-slate-300 hover:text-red-500 flex items-center justify-center shadow-sm"><i class="fas fa-times"></i></button>`;
+            container.appendChild(div);
+            runAutoScale();
+        }
+
+        function smartAddTask() {
+            const rows = document.querySelectorAll('#detailRowsContainer > div');
+            let lastTime = rows.length > 0 ? rows[rows.length - 1].querySelectorAll('input[type="time"]')[1].value : "";
+            addDetailRow(lastTime, "");
+        }
+
+        async function submitLog() {
+            const dateVal = document.getElementById('dateInp').value;
+            const details = Array.from(document.querySelectorAll('#detailRowsContainer > div')).map(row => {
+                const t = row.querySelectorAll('input[type="time"]');
+                const rawDesc = row.querySelector('textarea').value;
+                return { f: t[0].value, t: t[1].value, d: formatBullet(rawDesc) };
+            }).filter(item => item.d !== "");
+
+            if(!dateVal || details.length === 0) return alert("Required: Date & Progress!");
+
+            const logEntry = {
+                id: isEditMode ? parseInt(document.getElementById('editId').value) : Date.now(),
+                date: dateVal, name: document.getElementById('nameInp').value, nik: userNik,
+                customer: (document.getElementById('customerInp').value || '-').toUpperCase(),
+                location: (document.getElementById('locationInp').value || '-').toUpperCase(),
+                model: (document.getElementById('modelInp').value || '-').toUpperCase(), 
+                sn: (document.getElementById('snInp').value || '-').toUpperCase(),
+                hm: document.getElementById('hmInp').value || '0', 
+                job: (document.getElementById('jobDescInp').value || '-').toUpperCase(),
+                isSynced: false, detailData: details
+            };
+
+            let logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY));
+            if(!Array.isArray(logs)) logs = [];
+            
+            if(isEditMode) logs = logs.map(l => l.id === logEntry.id ? logEntry : l);
+            else logs.push(logEntry);
+            
+            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
+            sb.from('activity_logs').insert([{ nik: userNik, activity: isEditMode ? "Updated Report" : "New Report", details: `${logEntry.customer} - ${logEntry.model}` }]);
+            clearForm(); refreshTable(); 
+        }
+
+        async function syncToCloud() {
+            const btn = document.getElementById('btnSyncSmall');
+            const txt = btn.innerHTML;
+            let logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY));
+            if (logs.length === 0) return alert("No data.");
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing...`; btn.disabled = true;
+            try {
+                const payload = logs.map(l => ({ id: l.id, nik: userNik, log_data: { ...l, isSynced: true } }));
+                const { error } = await sb.from('tech_logs').upsert(payload);
+                if (error) throw error;
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs.map(l => ({ ...l, isSynced: true }))));
+                refreshTable(); alert("✅ Synced!");
+            } catch (err) { alert("Error: " + err.message); } finally { btn.innerHTML = txt; btn.disabled = false; }
+        }
+
+        async function pullFromCloud() {
+            const btn = document.getElementById('btnPull');
+            const txt = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Pulling...`; btn.disabled = true;
+            try {
+                const { data, error } = await sb.from('tech_logs').select('log_data').eq('nik', userNik).order('id', { ascending: false });
+                if(error) throw error;
+                if(data && data.length > 0) {
+                    if(confirm(`Found ${data.length} records. Overwrite local data?`)) {
+                        const cloudLogs = data.map(item => item.log_data);
+                        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(cloudLogs));
+                        resetFilter(); 
+                        alert("✅ Data Restored!");
+                    }
+                } else { alert("☁️ Cloud Empty"); }
+            } catch (err) { alert("Error: " + err.message); } finally { btn.innerHTML = txt; btn.disabled = false; }
+        }
+
+        function editLog(id) {
+            const logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY));
+            const log = logs.find(l => l.id === id);
+            if(!log) return;
+            isEditMode = true;
+            document.getElementById('editId').value = log.id;
+            document.getElementById('customerInp').value = log.customer; document.getElementById('locationInp').value = log.location;
+            document.getElementById('dateInp').value = log.date; document.getElementById('modelInp').value = log.model;
+            document.getElementById('snInp').value = log.sn; document.getElementById('hmInp').value = log.hm;
+            document.getElementById('jobDescInp').value = log.job;
+            document.getElementById('detailRowsContainer').innerHTML = '';
+            (log.detailData || []).forEach(d => addDetailRow(d.f, d.t, d.d));
+            document.getElementById('submitBtn').innerText = "UPDATE REPORT";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function deleteLog(id) {
+            if(confirm("Delete record?")) {
+                let logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY)).filter(l => l.id !== id);
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
+                sb.from('activity_logs').insert([{ nik: userNik, activity: "Deleted Report", details: `ID: ${id}` }]);
+                refreshTable();
+            }
+        }
+
+        function clearForm() {
+            isEditMode = false;
+            ['customerInp','locationInp','modelInp','snInp','hmInp','jobDescInp'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('detailRowsContainer').innerHTML = ''; addDetailRow();
+            document.getElementById('submitBtn').innerText = "SUBMIT REPORT";
+        }
+
+        function applyFilter() {
+            currentFilter.keyword = document.getElementById('filterKeyword').value.toLowerCase();
+            currentFilter.startDate = document.getElementById('filterDateStart').value;
+            currentFilter.endDate = document.getElementById('filterDateEnd').value;
+            currentFilter.status = document.getElementById('filterStatus').value;
+            refreshTable(); toggleFilterDrawer();
+        }
+
+        function resetFilter() {
+            document.getElementById('filterKeyword').value = ""; document.getElementById('filterDateStart').value = "";
+            document.getElementById('filterDateEnd').value = ""; document.getElementById('filterStatus').value = "all";
+            currentFilter = { keyword: "", startDate: "", endDate: "", status: "all" };
+            refreshTable();
+        }
+
+        function refreshTable() {
+            const masterList = document.getElementById('masterList');
+            masterList.innerHTML = '';
+            
+            let logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+            logs = logs.filter(l => l && l.id); // Clean invalid data
+
+            const filteredLogs = logs.filter(obj => {
+                const searchStr = ((obj.customer || "") + (obj.model || "") + (obj.job || "")).toLowerCase();
+                const matchKeyword = !currentFilter.keyword || searchStr.includes(currentFilter.keyword);
+                const matchDate = (!currentFilter.startDate || obj.date >= currentFilter.startDate) && (!currentFilter.endDate || obj.date <= currentFilter.endDate);
+                const matchStatus = currentFilter.status === 'all' || (currentFilter.status === 'synced' && obj.isSynced) || (currentFilter.status === 'local' && !obj.isSynced);
+                return matchKeyword && matchDate && matchStatus;
+            });
+
+            if(filteredLogs.length === 0) { 
+                masterList.innerHTML = `<div class="text-center p-10 text-slate-400 font-bold bg-white/50 rounded-3xl border-2 border-dashed border-slate-200">NO DATA FOUND</div>`; 
+                return; 
+            }
+
+            filteredLogs.sort((a,b) => b.id - a.id).forEach(obj => {
+                let details = Array.isArray(obj.detailData) ? obj.detailData : [];
+                let chronoRows = details.map(item => 
+                    `<tr>
+                        <td class="w-24 align-top p-3 border-b border-slate-100">
+                            <div class="text-[11px] font-mono font-bold text-green-600 bg-green-100 px-2 py-1 rounded-lg text-center whitespace-nowrap">${item.f} - ${item.t}</div>
+                        </td>
+                        <td class="p-3 border-b border-slate-100 align-top">
+                            <div class="description-text text-sm text-slate-600 font-medium leading-relaxed">${item.d}</div>
+                        </td>
+                    </tr>`).join('');
+                
+                const section = document.createElement('div');
+                section.className = "history-card group";
+                section.innerHTML = `
+                    <div class="bg-slate-50/80 p-4 flex justify-between items-center border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ${obj.isSynced ? 'bg-green-500' : 'bg-amber-400'}">
+                                <i class="${obj.isSynced ? 'fas fa-check' : 'fas fa-pen'}"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-black text-slate-700 font-mono">${obj.date}</h4>
+                                <p class="text-[10px] font-bold uppercase tracking-wide ${obj.isSynced ? 'text-green-600' : 'text-amber-500'}">${obj.isSynced ? 'SYNCED' : 'DRAFT'}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editLog(${obj.id})" class="w-9 h-9 rounded-xl bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white transition-all"><i class="fas fa-pen text-xs"></i></button>
+                            <button onclick="deleteLog(${obj.id})" class="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all"><i class="fas fa-trash text-xs"></i></button>
+                        </div>
+                    </div>
+                    <div class="p-5">
+                        <div class="mb-5 pb-4 border-b border-dashed border-slate-200">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">JOB DESCRIPTION</p>
+                            <h3 class="text-xl font-black text-slate-800 uppercase leading-snug tracking-tight">${obj.job || '<span class="text-slate-300 italic">No Title</span>'}</h3>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-5">
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                <span class="text-[9px] text-slate-400 font-bold uppercase">Customer</span>
+                                <p class="text-xs font-bold text-slate-700 truncate mt-1">${obj.customer || '-'}</p>
+                                <p class="text-[10px] text-slate-500 truncate">${obj.location || '-'}</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                <span class="text-[9px] text-slate-400 font-bold uppercase">Unit Info</span>
+                                <p class="text-xs font-bold text-green-600 truncate mt-1">${obj.model || '-'}</p>
+                                <p class="text-[10px] text-slate-500 font-mono">HM: ${obj.hm || '-'}</p>
+                            </div>
+                        </div>
+                        <div class="rounded-2xl overflow-hidden border border-slate-100 bg-white">
+                            <table class="w-full border-collapse"><tbody class="divide-y divide-slate-50">${chronoRows}</tbody></table>
+                        </div>
+                    </div>`;
+                masterList.appendChild(section);
+            });
+            runAutoScale();
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            const logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY));
+            let flatData = [];
+            logs.forEach(l => {
+                (l.detailData || []).forEach((d, i) => {
+                    flatData.push([ i === 0 ? l.date : '', i === 0 ? l.name : '', i === 0 ? l.customer : '', i === 0 ? l.model : '', i === 0 ? l.job : '', `${d.f}-${d.t}`, d.d ]);
+                });
+            });
+            doc.autoTable({ head: [['DATE', 'TECH', 'CLIENT', 'UNIT', 'JOB', 'TIME', 'DETAIL']], body: flatData, headStyles: { fillColor: [46, 52, 63] }, styles: { fontSize: 9 }, alternateRowStyles: { fillColor: [240, 253, 244] } });
+            doc.save("Activity_Report_Mint.pdf");
+        }
+
+        function exportToExcel() {
+            let logs = safeJSONParse(localStorage.getItem(CONFIG.STORAGE_KEY));
+            let flat = logs.flatMap(l => (l.detailData || []).map(d => ({ Tgl: l.date, Tech: l.name, NIK: l.nik, Client: l.customer, Unit: l.model, Job: l.job, Jam: `${d.f}-${d.t}`, Detail: d.d })));
+            const ws = XLSX.utils.json_to_sheet(flat); const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Logs"); XLSX.writeFile(wb, "Activity_Report_Mint.xlsx");
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

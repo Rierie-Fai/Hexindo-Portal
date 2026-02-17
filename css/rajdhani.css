@@ -1,0 +1,26 @@
+/* 1. Rajdhani REGULAR (400) */
+@font-face {
+    font-family: 'Rajdhani';
+    src: url('../webfonts/Rajdhani-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* 2. Rajdhani MEDIUM (500) */
+@font-face {
+    font-family: 'Rajdhani';
+    src: url('../webfonts/Rajdhani-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* 3. Rajdhani BOLD (700) */
+@font-face {
+    font-family: 'Rajdhani';
+    src: url('../webfonts/Rajdhani-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}

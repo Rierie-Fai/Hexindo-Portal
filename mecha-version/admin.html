@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin HQ | Hexindo Fleet</title>
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        const userNik = localStorage.getItem('userNIK');
+        if (!userNik) window.location.replace('/mecha-version/login.html');
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <script src="/js/chart.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Glass Background lebih transparan agar partikel besar terlihat jelas */
+            --glass-bg: rgba(255, 255, 255, 0.55); 
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 4px 20px 0 rgba(31, 38, 135, 0.05);
+            --accent-color: #f59e0b;
+            --text-primary: #0f172a;
+            --sidebar-width: 240px;
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: 
+                linear-gradient(0deg, #e2e8f0 1px, transparent 1px), 
+                linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: var(--text-primary);
+            display: flex; height: 100vh; overflow: hidden;
+            font-size: 13px;
+        }
+
+        /* --- MECHA PARTICLES CANVAS --- */
+        #mecha-canvas { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none; z-index: 0; opacity: 0.6; /* Opacity global canvas */
+        }
+
+        /* --- SIDEBAR --- */
+        aside {
+            width: var(--sidebar-width); background: rgba(255,255,255,0.85); 
+            backdrop-filter: blur(15px); border-right: 1px solid #cbd5e1;
+            display: flex; flex-direction: column; z-index: 50;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: fixed; height: 100%; top: 0; left: 0;
+        }
+        
+        @media (max-width: 1024px) {
+            aside { transform: translateX(-100%); width: 260px; }
+            aside.open { transform: translateX(0); box-shadow: 5px 0 30px rgba(0,0,0,0.1); }
+            main { width: 100%; }
+        }
+        @media (min-width: 1025px) {
+            aside { transform: translateX(0) !important; position: static; }
+            main { flex: 1; }
+            #mobile-overlay { display: none !important; }
+        }
+
+        #mobile-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); 
+            backdrop-filter: blur(2px); z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #mobile-overlay.show { opacity: 1; pointer-events: auto; }
+
+        main { flex: 1; overflow-y: auto; padding: 1rem; position: relative; width: 100%; z-index: 10; }
+
+        /* --- COMPACT UI ELEMENTS --- */
+        .glass-panel { 
+            background: var(--glass-bg); backdrop-filter: blur(8px); /* Blur dikurangi agar partikel terlihat */
+            border: 1px solid var(--glass-border); border-radius: 12px;
+            box-shadow: var(--glass-shadow); padding: 1rem; margin-bottom: 1rem;
+        }
+
+        .nav-item {
+            display: flex; items-center; gap: 10px; padding: 10px 16px;
+            margin: 4px 10px; border-radius: 8px; cursor: pointer;
+            color: #64748b; font-weight: 600; transition: all 0.2s;
+            font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .nav-item:hover { background: #f8fafc; color: var(--accent-color); transform: translateX(2px); }
+        .nav-item.active { 
+            background: #fffbeb; color: var(--accent-color); 
+            border: 1px solid #fcd34d; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.7); backdrop-filter: blur(4px);
+            border-radius: 12px; padding: 1rem;
+            border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;
+        }
+        .stat-value { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.5rem; color: #1e293b; line-height: 1; }
+        .stat-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+        
+        .table-container { overflow-x: auto; border-radius: 8px; border: 1px solid #e2e8f0; background: rgba(255,255,255,0.4); }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; } 
+        th { text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b; padding: 8px 12px; background: rgba(248, 250, 252, 0.7); font-weight: 700; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; font-weight: 600; color: #334155; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.5); }
+
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+        .badge-amber { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+        .badge-slate { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+        #loader { position: fixed; inset: 0; background: #f8fafc; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top-color: var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <canvas id="mecha-canvas"></canvas>
+
+    <div id="loader">
+        <div class="spinner mb-3"></div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CONNECTING...</p>
+    </div>
+
+    <div id="mobile-overlay" onclick="App.toggleSidebar()"></div>
+
+    <aside id="sidebar">
+        <div class="p-5 flex items-center justify-between border-b border-slate-200/50">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white text-sm shadow-md">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-black italic uppercase leading-none text-slate-800">HEXINDO <span class="text-amber-500">ADMIN</span></h1>
+                </div>
+            </div>
+            <button onclick="App.toggleSidebar()" class="lg:hidden text-slate-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4 space-y-1 px-2">
+            <div onclick="App.switchTab('dashboard')" class="nav-item active" id="nav-dashboard">
+                <i class="fas fa-th-large w-4 text-center"></i> Dashboard
+            </div>
+            <div onclick="App.switchTab('users')" class="nav-item" id="nav-users">
+                <i class="fas fa-users-cog w-4 text-center"></i> User List
+            </div>
+            
+            <div class="px-4 py-3 mt-2">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">DATA REPO</p>
+                <div class="h-px w-full bg-slate-200 mt-1"></div>
+            </div>
+
+            <div onclick="App.switchTab('reports-pump')" class="nav-item" id="nav-reports-pump">
+                <i class="fas fa-tachometer-alt w-4 text-center"></i> Pump Data
+            </div>
+            <div onclick="App.switchTab('reports-uc')" class="nav-item" id="nav-reports-uc">
+                <i class="fas fa-tractor w-4 text-center"></i> UC Inspection
+            </div>
+            <div onclick="App.switchTab('audit')" class="nav-item" id="nav-audit">
+                <i class="fas fa-file-contract w-4 text-center"></i> Logs
+            </div>
+        </nav>
+
+        <div class="p-4 border-t border-slate-200/50">
+            <a href="/mecha-version/index.html" class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-slate-300 text-slate-500 font-bold text-xs uppercase hover:bg-slate-100 transition-all">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </aside>
+
+    <main>
+        <header class="flex justify-between items-center mb-4">
+            <div class="flex items-center gap-3">
+                <button onclick="App.toggleSidebar()" class="lg:hidden w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-600 border border-slate-300 shadow-sm">
+                    <i class="fas fa-bars text-xs"></i>
+                </button>
+                
+                <div>
+                    <h2 class="text-lg font-black text-slate-800 uppercase italic tracking-tight leading-none" id="pageTitle">OVERVIEW</h2>
+                    <p class="text-[9px] text-slate-500 font-mono font-bold uppercase tracking-wide" id="currentDate">...</p>
+                </div>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-3 bg-white/70 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm backdrop-blur-sm">
+                <div class="text-right leading-tight">
+                    <p class="text-xs font-bold text-slate-700 uppercase" id="adminName">...</p>
+                    <p class="text-[8px] text-amber-600 font-bold uppercase tracking-wider">SUPER USER</p>
+                </div>
+                <div class="w-7 h-7 bg-slate-800 rounded-md flex items-center justify-center text-white text-xs">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+            </div>
+        </header>
+
+        <div id="tab-dashboard" class="space-y-4 fade-in">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="stat-card">
+                    <div><p class="stat-value" id="stat-users">0</p><p class="stat-label">Techs</p></div>
+                    <i class="fas fa-users text-slate-300 text-xl"></i>
+                </div>
+                <div class="stat-card border-blue-200">
+                    <div><p class="stat-value text-blue-600" id="stat-activity">0</p><p class="stat-label">Logs</p></div>
+                    <i class="fas fa-clipboard-check text-blue-200 text-xl"></i>
+                </div>
+                <div class="stat-card border-emerald-200">
+                    <div><p class="stat-value text-emerald-600" id="stat-pump">0</p><p class="stat-label">Pumps</p></div>
+                    <i class="fas fa-gauge-high text-emerald-200 text-xl"></i>
+                </div>
+                <div class="stat-card border-amber-200">
+                    <div><p class="stat-value text-amber-600" id="stat-uc">0</p><p class="stat-label">UC Units</p></div>
+                    <i class="fas fa-tractor text-amber-200 text-xl"></i>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="glass-panel col-span-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xs font-black text-slate-700 uppercase">Weekly Traffic</h3>
+                    </div>
+                    <div class="h-48 w-full">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <h3 class="text-xs font-black text-slate-700 uppercase mb-3">Live Stream</h3>
+                    <div class="space-y-2 overflow-y-auto max-h-[180px] pr-1" id="mini-audit-log">
+                        </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-users" class="hidden fade-in">
+            <div class="glass-panel">
+                <div class="flex justify-between items-center mb-3">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-2 top-2 text-slate-400 text-xs"></i>
+                        <input type="text" placeholder="Search..." class="pl-7 pr-3 py-1.5 bg-white/80 border border-slate-300 rounded-md text-xs font-bold uppercase outline-none focus:border-amber-400 w-48">
+                    </div>
+                    <button onclick="document.getElementById('modalUser').classList.remove('hidden')" class="bg-slate-800 text-white px-3 py-1.5 rounded-md text-[10px] font-bold uppercase hover:bg-slate-700 flex items-center gap-1 shadow">
+                        <i class="fas fa-plus"></i> Add NIK
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead>
+                            <tr>
+                                <th>NIK</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th class="text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-reports-pump" class="hidden fade-in">
+             <div class="glass-panel">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-black text-slate-700 uppercase">Pump Records</h3>
+                    <button class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-1 rounded text-[10px] font-bold uppercase hover:bg-emerald-100"><i class="fas fa-download mr-1"></i> CSV</button>
+                </div>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead><tr><th>Date</th><th>Unit</th><th>S/N</th><th>Tech</th><th>Status</th></tr></thead>
+                        <tbody id="pumpTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-reports-uc" class="hidden fade-in">
+            <div class="glass-panel">
+                <h3 class="text-sm font-black text-slate-700 uppercase mb-3">Undercarriage Logs</h3>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead><tr><th>Date</th><th>Unit S/N</th><th>Tech</th><th>Model</th><th>Status</th></tr></thead>
+                        <tbody id="ucTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-audit" class="hidden fade-in">
+             <div class="glass-panel">
+                <h3 class="text-sm font-black text-slate-700 uppercase mb-3">Security Audit</h3>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead><tr><th>Time</th><th>NIK</th><th>Action</th><th>Payload</th></tr></thead>
+                        <tbody id="auditTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modalUser" class="fixed inset-0 bg-slate-900/60 z-[100] hidden flex items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl p-5 w-full max-w-xs shadow-2xl border border-white">
+            <h3 class="text-base font-black text-slate-800 uppercase italic mb-1">New User</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase mb-4">Deploy new NIK access</p>
+            
+            <form id="addUserForm" class="space-y-3">
+                <input type="text" id="newNik" placeholder="NIK ID" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono font-bold outline-none focus:border-amber-400 uppercase">
+                <input type="text" id="newName" placeholder="Full Name" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold uppercase outline-none focus:border-amber-400">
+                
+                <div class="flex gap-2 mt-4">
+                    <button type="button" onclick="document.getElementById('modalUser').classList.add('hidden')" class="flex-1 py-2 rounded-lg border border-slate-200 text-slate-500 text-[10px] font-black uppercase hover:bg-slate-100">Cancel</button>
+                    <button type="submit" class="flex-1 py-2 rounded-lg bg-amber-500 text-white text-[10px] font-black uppercase hover:bg-amber-600 shadow-md">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+
+        // --- OVERCLOCKED PARTICLE ENGINE ---
+        class ParticleEngine {
+            constructor() {
+                this.canvas = document.getElementById('mecha-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = [];
+                this.qty = 250; // FREKUENSI TINGGI
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.init();
+                this.animate();
+            }
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            init() { this.particles = Array.from({ length: this.qty }, () => new Particle(this.canvas)); }
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.particles.forEach(p => { p.update(); p.draw(this.ctx); });
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        class Particle {
+            constructor(canvas) { this.canvas = canvas; this.reset(); }
+            reset() {
+                this.x = Math.random() * this.canvas.width;
+                this.y = Math.random() * this.canvas.height;
+                // UKURAN BESAR (3px - 8px)
+                this.size = Math.random() * 5 + 3; 
+                this.speedX = (Math.random() - 0.5) * 1.2;
+                this.speedY = (Math.random() - 0.5) * 1.2;
+                this.opacity = Math.random() * 0.3 + 0.15; // Opacity terjaga agar tidak menutupi teks
+            }
+            update() {
+                this.x += this.speedX; this.y += this.speedY;
+                if (this.x < 0 || this.x > this.canvas.width || this.y < 0 || this.y > this.canvas.height) this.reset();
+            }
+            draw(ctx) {
+                ctx.fillStyle = `rgba(148, 163, 184, ${this.opacity})`;
+                ctx.beginPath(); ctx.rect(this.x, this.y, this.size, this.size); ctx.fill();
+            }
+        }
+
+        const App = {
+            sb: supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY),
+            nik: localStorage.getItem('userNIK'),
+
+            async init() {
+                new ParticleEngine(); // Ignite Engine
+                this.updateDate();
+                
+                try {
+                    const { data: user, error } = await this.sb.from('users').select('role, full_name').eq('nik', this.nik).single();
+                    if(error || user.role !== 'admin') throw new Error("Unauthorized");
+                    
+                    document.getElementById('adminName').innerText = user.full_name;
+                    document.getElementById('loader').classList.add('hidden');
+
+                    this.loadDashboard();
+                    this.initChart();
+                    this.setupForm();
+
+                } catch (err) {
+                    window.location.replace('index.html');
+                }
+            },
+
+            updateDate() {
+                document.getElementById('currentDate').innerText = new Date().toLocaleDateString('id-ID', { 
+                    weekday: 'short', year: '2-digit', month: 'short', day: 'numeric' 
+                }).toUpperCase();
+            },
+
+            toggleSidebar() {
+                document.getElementById('sidebar').classList.toggle('open');
+                document.getElementById('mobile-overlay').classList.toggle('show');
+            },
+
+            switchTab(tabName) {
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('mobile-overlay').classList.remove('show');
+
+                ['dashboard', 'users', 'reports-pump', 'reports-uc', 'audit'].forEach(t => {
+                    document.getElementById(`tab-${t}`).classList.add('hidden');
+                    document.getElementById(`nav-${t}`).classList.remove('active');
+                });
+                
+                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+                document.getElementById(`nav-${tabName}`).classList.add('active');
+                
+                const titleMap = { 'dashboard': 'DASHBOARD', 'users': 'USERS', 'reports-pump': 'HYDRAULIC', 'reports-uc': 'INSPECTION', 'audit': 'AUDIT' };
+                document.getElementById('pageTitle').innerText = titleMap[tabName];
+
+                if(tabName === 'users') this.fetchUsers();
+                if(tabName === 'reports-pump') this.fetchPumpReports();
+                if(tabName === 'reports-uc') this.fetchUCReports();
+                if(tabName === 'audit') this.fetchAuditLogs();
+            },
+
+            async loadDashboard() {
+                const [users, pump, uc, logs] = await Promise.all([
+                    this.sb.from('users').select('*', { count: 'exact', head: true }),
+                    this.sb.from('pump_performance_reports').select('*', { count: 'exact', head: true }),
+                    this.sb.from('uc_reports').select('*', { count: 'exact', head: true }),
+                    this.sb.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(5)
+                ]);
+
+                document.getElementById('stat-users').innerText = users.count || 0;
+                document.getElementById('stat-pump').innerText = pump.count || 0;
+                document.getElementById('stat-uc').innerText = uc.count || 0;
+
+                const logContainer = document.getElementById('mini-audit-log');
+                if (logs.data) {
+                    logContainer.innerHTML = logs.data.map(l => `
+                        <div class="flex items-center gap-2 p-2 bg-white/50 rounded border border-slate-100">
+                            <div class="w-1 h-8 bg-amber-400 rounded-full"></div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[10px] font-bold text-slate-700 uppercase truncate">${l.activity}</p>
+                                <p class="text-[9px] text-slate-400 font-mono">${new Date(l.created_at).toLocaleTimeString()}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            },
+
+            initChart() {
+                const ctx = document.getElementById('activityChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line', 
+                    data: {
+                        labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+                        datasets: [{
+                            label: 'Data',
+                            data: [5, 12, 8, 15, 10, 4, 9],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { display: false },
+                            x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+                        }
+                    }
+                });
+            },
+
+            async fetchUsers() {
+                const tbody = document.getElementById('userTableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4"><div class="spinner mx-auto"></div></td></tr>`;
+                const { data } = await this.sb.from('users').select('*').order('created_at', { ascending: false });
+                tbody.innerHTML = data.map(u => `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="font-mono font-bold text-amber-600 text-[10px]">${u.nik}</td>
+                        <td class="font-bold uppercase text-slate-700 text-[10px]">${u.full_name}</td>
+                        <td><span class="badge ${u.role === 'admin' ? 'badge-amber' : 'badge-slate'}">${u.role.substring(0,3)}</span></td>
+                        <td><div class="w-2 h-2 rounded-full ${u.status !== 'inactive' ? 'bg-emerald-500' : 'bg-red-500'}"></div></td>
+                        <td class="text-right"><button onclick="App.deleteUser('${u.nik}')" class="text-red-400 hover:text-red-600"><i class="fas fa-trash text-xs"></i></button></td>
+                    </tr>
+                `).join('');
+            },
+
+            async fetchPumpReports() {
+                const tbody = document.getElementById('pumpTableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4"><div class="spinner mx-auto"></div></td></tr>`;
+                const { data } = await this.sb.from('pump_performance_reports').select('*').order('test_date', { ascending: false }).limit(30);
+                tbody.innerHTML = data.map(r => `
+                    <tr class="hover:bg-blue-50/50">
+                        <td class="font-mono text-[10px] text-slate-500">${new Date(r.test_date).toLocaleDateString()}</td>
+                        <td class="font-bold text-slate-800 text-[10px]">${r.unit_model}</td>
+                        <td class="font-mono text-[10px]">${r.serial_number}</td>
+                        <td><span class="badge badge-slate">${r.nik}</span></td>
+                        <td><i class="fas fa-check text-emerald-500 text-[10px]"></i></td>
+                    </tr>
+                `).join('');
+            },
+
+            async fetchUCReports() {
+                const tbody = document.getElementById('ucTableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4"><div class="spinner mx-auto"></div></td></tr>`;
+                const { data } = await this.sb.from('uc_reports').select('*').order('inspection_date', { ascending: false }).limit(30);
+                tbody.innerHTML = data.map(r => `
+                    <tr class="hover:bg-amber-50/50">
+                        <td class="font-mono text-[10px] text-slate-500">${new Date(r.inspection_date).toLocaleDateString()}</td>
+                        <td class="font-bold text-slate-800 text-[10px]">${r.unit_no || r.serial_number}</td>
+                        <td><span class="badge badge-slate">${r.nik}</span></td>
+                        <td class="text-[10px] uppercase">${r.unit_model}</td>
+                        <td><i class="fas fa-sync text-blue-400 text-[10px]"></i></td>
+                    </tr>
+                `).join('');
+            },
+
+            async fetchAuditLogs() {
+                const tbody = document.getElementById('auditTableBody');
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4"><div class="spinner mx-auto"></div></td></tr>`;
+                const { data } = await this.sb.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50);
+                tbody.innerHTML = data.map(l => `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                        <td class="font-mono text-[9px] text-slate-400">${new Date(l.created_at).toLocaleString()}</td>
+                        <td class="font-mono font-bold text-amber-600 text-[9px]">${l.nik}</td>
+                        <td class="font-bold text-slate-700 text-[9px] uppercase">${l.activity}</td>
+                        <td class="text-[9px] text-slate-500 truncate max-w-[100px]">${l.details || '-'}</td>
+                    </tr>
+                `).join('');
+            },
+
+            setupForm() {
+                document.getElementById('addUserForm').onsubmit = async (e) => {
+                    e.preventDefault();
+                    const nik = document.getElementById('newNik').value.toUpperCase();
+                    const full_name = document.getElementById('newName').value.toUpperCase();
+                    if(!nik || !full_name) return alert("Empty fields");
+                    const { error } = await this.sb.from('users').insert([{ nik, full_name, password: 'hexindo123', role: 'technician', status: 'active' }]);
+                    if(!error) {
+                        document.getElementById('modalUser').classList.add('hidden');
+                        document.getElementById('addUserForm').reset();
+                        this.fetchUsers();
+                    } else alert(error.message);
+                };
+            },
+
+            async deleteUser(targetNik) {
+                if(confirm(`Delete ${targetNik}?`)) {
+                    await this.sb.from('users').delete().eq('nik', targetNik);
+                    this.fetchUsers();
+                }
+            }
+        };
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+</body>
+</html>

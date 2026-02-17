@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Portal Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="/manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --mint-primary: #87cf3a;
+            --mint-secondary: #4ade80;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.85);
+            
+            /* ULTRA SMOOTH PHYSICS (Apple ProMotion Style) */
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+            --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* --- GLOBAL FLUIDITY --- */
+        html { 
+            scroll-behavior: smooth; 
+            height: 100%;
+        }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; 
+            overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            -webkit-tap-highlight-color: transparent;
+            /* GPU HACK */
+            transform: translateZ(0); 
+            backface-visibility: hidden;
+        }
+
+        /* 120FPS SCROLLING */
+        * {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Bubbles Background */
+        #bubble-canvas { 
+            position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; 
+            will-change: transform; /* Hint to browser */
+        }
+
+        /* --- SCALER CONTEXT --- */
+        #scaler-context { 
+            width: var(--base-width); transform-origin: top center; 
+            /* Super smooth transition for scaling */
+            transition: transform 0.4s var(--ease-out-expo), opacity 0.8s ease; 
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10; 
+            will-change: transform, opacity;
+        }
+
+        /* --- JELLY COMPONENTS --- */
+        .glass-panel { 
+            background: var(--mint-glass);
+            backdrop-filter: blur(24px) saturate(140%);
+            -webkit-backdrop-filter: blur(24px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 40px -10px rgba(135, 207, 58, 0.15), 
+                        0 4px 10px -5px rgba(0,0,0,0.05);
+            border-radius: 32px; 
+            /* Hyper Smooth Hover Physics */
+            transition: transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo), background 0.3s ease;
+            position: relative; overflow: hidden;
+            margin-bottom: 1.5rem;
+            transform: translate3d(0,0,0); /* Force GPU Layer */
+        }
+        
+        .glass-panel:hover {
+            transform: translate3d(0, -4px, 0) scale(1.005);
+            box-shadow: 0 20px 50px -10px rgba(135, 207, 58, 0.25);
+        }
+
+        /* Jelly Card Animation */
+        .jelly-card {
+            display: flex; flex-direction: column; justify-content: space-between;
+            min-height: 180px; padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.7);
+            border: 2px solid white;
+            border-radius: 32px;
+            /* Elastic Bounce Effect */
+            transition: all 0.5s var(--ease-out-expo);
+            position: relative; z-index: 1;
+            transform: translate3d(0,0,0);
+        }
+        
+        .jelly-card:active { transform: scale(0.94); transition-duration: 0.1s; }
+        .jelly-card:hover {
+            transform: translate3d(0, -8px, 0) scale(1.02);
+            box-shadow: 0 20px 30px -10px rgba(135, 207, 58, 0.3);
+            border-color: var(--mint-primary);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .icon-bubble {
+            width: 60px; height: 60px; border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; margin-bottom: 1rem;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+            box-shadow: 0 8px 16px rgba(135, 207, 58, 0.15);
+            color: #16a34a; 
+            transition: all 0.6s var(--ease-elastic); /* Elastic Icon */
+        }
+        .jelly-card:hover .icon-bubble {
+            transform: rotate(15deg) scale(1.15);
+            background: var(--mint-primary); color: white;
+            box-shadow: 0 10px 20px rgba(135, 207, 58, 0.4);
+        }
+
+        /* --- MINT HEADER --- */
+        .mint-header {
+            background: #2f343f; color: white;
+            border-radius: 24px;
+            box-shadow: 0 15px 35px -10px rgba(47, 52, 63, 0.4);
+            position: relative; overflow: hidden;
+            transition: transform 0.5s var(--ease-out-expo);
+        }
+        .mint-header:active { transform: scale(0.98); }
+
+        /* --- DRAWER SYSTEM FIXED (Hyper Smooth) --- */
+        #drawerOverlay {
+            position: fixed; inset: 0; 
+            background: rgba(15, 23, 42, 0.3); 
+            backdrop-filter: blur(4px);
+            z-index: 90; opacity: 0; pointer-events: none; 
+            transition: opacity 0.4s var(--ease-out-expo);
+            will-change: opacity;
+        }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+
+        .drawer {
+            position: fixed; top: 0; bottom: 0;
+            width: 85%; max-width: 360px;
+            
+            /* GLASS EFFECT START */
+            background: rgba(255, 255, 255, 0.9) !important; 
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border-left: 1px solid rgba(255, 255, 255, 0.5);
+            /* GLASS EFFECT END */
+
+            z-index: 100 !important;
+            display: flex; flex-direction: column;
+            box-shadow: 0 0 50px rgba(0,0,0,0.15);
+            
+            /* The Magic: Smooth Slide */
+            transition: transform 0.5s var(--ease-out-expo);
+            will-change: transform;
+        }
+
+        #chatDrawer { 
+            left: 0; transform: translate3d(-105%, 0, 0); 
+            border-radius: 0 24px 24px 0; 
+            border-right: 1px solid rgba(255, 255, 255, 0.5); border-left: none;
+        }
+        #notifDrawer { 
+            right: 0; transform: translate3d(105%, 0, 0); 
+            border-radius: 24px 0 0 24px; 
+        }
+        .drawer.open { transform: translate3d(0, 0, 0) !important; }
+
+        /* --- CHAT STYLING --- */
+        #chatRoomView {
+            background-color: rgba(241, 245, 249, 0.6);
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .chat-bubble {
+            max-width: 80%; padding: 12px 16px; border-radius: 20px; margin-bottom: 8px; font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+            animation: popIn 0.4s var(--ease-elastic); /* Elastic Bubble Pop */
+            transform-origin: bottom left;
+        }
+        .chat-bubble.me { align-self: flex-end; background: #87cf3a; color: white; border-bottom-right-radius: 4px; transform-origin: bottom right; }
+        .chat-bubble.them { align-self: flex-start; background: rgba(255,255,255,0.9); color: #334155; border-bottom-left-radius: 4px; }
+
+        /* --- LOADER --- */
+        #splash-screen { 
+            position: fixed; inset: 0; background: #f0fdf4; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 9999; 
+            transition: opacity 0.6s ease-out, visibility 0.6s;
+        }
+        .mint-spinner { width: 60px; height: 60px; border-radius: 50%; border: 5px solid #dcfce7; border-top-color: var(--mint-primary); animation: spin 0.8s ease-in-out infinite; }
+        
+        /* Keyframes */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes popIn { 
+            0% { transform: scale(0.5); opacity: 0; } 
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; } 
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="drawerOverlay" onclick="App.closeAllDrawers()"></div>
+
+    <aside id="notifDrawer" class="drawer">
+        <div class="p-5 border-b border-slate-100/50 flex justify-between items-center bg-white/60 z-10 backdrop-blur-md">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                <i class="fas fa-bell text-amber-500"></i> Notifications
+            </h3>
+            <button onclick="App.toggleDrawer('notifDrawer')" class="w-8 h-8 rounded-full bg-slate-100/80 text-slate-400 hover:bg-red-100 hover:text-red-500 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="notifList" class="flex-1 overflow-y-auto p-4 space-y-3 bg-transparent"></div>
+    </aside>
+
+    <aside id="chatDrawer" class="drawer">
+        <div class="p-4 border-b border-slate-100/50 bg-white/60 flex justify-between items-center z-10 shadow-sm backdrop-blur-md">
+            <div class="flex items-center gap-3">
+                <button id="btnBackToContacts" onclick="App.showContactList()" class="hidden w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-green-100 hover:text-green-600 transition-all">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <h3 id="chatHeaderTitle" class="text-sm font-bold text-slate-800 uppercase">Comms Center</h3>
+                    <p id="chatHeaderSubtitle" class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Team Chat</p>
+                </div>
+            </div>
+            <button onclick="App.toggleDrawer('chatDrawer')" class="w-8 h-8 rounded-full bg-slate-100/80 text-slate-400 hover:bg-red-100 hover:text-red-500 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div id="contactListView" class="flex-1 overflow-y-auto p-4 space-y-2 bg-transparent">
+            <div onclick="App.openChat('ALL')" class="p-4 bg-white/80 border border-slate-200 hover:border-blue-400 rounded-xl shadow-sm cursor-pointer transition-all active:scale-95 group">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner"><i class="fas fa-globe"></i></div>
+                    <div><h4 class="text-xs font-bold text-slate-700 uppercase group-hover:text-blue-600">Public Channel</h4><p class="text-[9px] text-slate-400">Broadcast to all units</p></div>
+                </div>
+            </div>
+            <div class="mt-4 mb-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Personnel</div>
+            <div id="userListContainer" class="space-y-2"></div>
+        </div>
+        
+        <div id="chatRoomView" class="hidden flex-1 flex flex-col relative">
+            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 flex flex-col pb-20"></div>
+            <div class="p-3 bg-white/80 border-t border-slate-200 sticky bottom-0 z-20 backdrop-blur-md">
+                <form id="chatForm" class="flex gap-2 items-center">
+                    <input type="text" id="chatInput" class="flex-1 px-4 py-3 text-sm bg-slate-100/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 transition-all" placeholder="Message..." autocomplete="off">
+                    <button type="submit" class="w-10 h-10 bg-green-500 text-white rounded-xl hover:bg-green-600 shadow-md transform active:scale-90 transition-transform"><i class="fas fa-paper-plane"></i></button>
+                </form>
+            </div>
+        </div>
+    </aside>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <div class="mt-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-700 tracking-tight font-mono">HEXINDO <span class="text-green-500">MINT</span></h1>
+            <p id="status-text" class="text-slate-400 text-[10px] font-bold tracking-widest mt-2">LOADING ENVIRONMENT...</p>
+        </div>
+        <div class="mt-8 w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div id="splashProgress" class="h-full bg-green-500 w-0 transition-all duration-1000 ease-out rounded-full"></div>
+        </div>
+    </div>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <header class="mint-header p-6 mb-8 flex justify-between items-center group">
+            <div class="flex items-center gap-5 relative z-10">
+                <button onclick="App.toggleDrawer('chatDrawer')" class="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg shadow-green-500/30 hover:scale-110 transition-transform relative active:scale-95 duration-200">
+                    <i class="fab fa-linux"></i>
+                    <span id="chatBadge" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#2f343f] hidden animate-bounce"></span>
+                </button>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-wide text-white">HEXINDO <span class="text-green-400">Portal</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        <p class="text-[10px] font-mono text-slate-300 uppercase tracking-wider">SYSTEM READY</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 relative z-10">
+                <button id="notifBtn" onclick="App.toggleDrawer('notifDrawer')" class="hidden w-12 h-12 bg-slate-700 rounded-2xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-600 transition-all relative active:scale-95">
+                    <i class="fas fa-bell"></i>
+                    <span id="notifBadge" class="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border border-slate-700 hidden"></span>
+                </button>
+                
+                <div class="text-right mx-2 hidden sm:block">
+                    <p id="userNameDisplay" class="text-sm font-bold text-white">...</p>
+                    <p id="userNikDisplay" class="text-[10px] font-mono text-green-300">NIK: ...</p>
+                </div>
+
+                <button onclick="App.logout()" class="w-12 h-12 bg-slate-700/50 rounded-2xl flex items-center justify-center text-red-400 hover:bg-red-500 hover:text-white hover:rotate-90 transition-all duration-300 shadow-md active:scale-90">
+                    <i class="fas fa-power-off"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 gap-6 mb-6">
+            <div class="glass-panel p-6 flex justify-between items-center relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-green-400/20 rounded-full blur-3xl"></div>
+                <div>
+                    <h3 id="liveTime" class="text-6xl font-bold text-slate-700 tracking-tighter" style="font-family: 'JetBrains Mono';">00:00</h3>
+                    <p id="liveDate" class="text-sm text-green-600 font-bold uppercase tracking-wider mt-1 pl-1">...</p>
+                </div>
+                <div class="hidden sm:flex flex-col items-end">
+                    <span id="roleBadge" class="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded-full mb-1">...</span>
+                    <span class="text-[10px] text-slate-400 font-mono">TERMINAL ACTIVE</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="adminSection" class="hidden mb-6">
+            <a href="admin.html" class="glass-panel p-5 flex items-center gap-5 hover:scale-[1.02] transition-transform cursor-pointer border-l-8 border-green-500 group active:scale-[0.98]">
+                <div class="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-green-400 shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                    <i class="fas fa-terminal text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-lg font-bold text-slate-800 uppercase group-hover:text-green-600 transition-colors">Root Access</h2>
+                    <p class="text-xs text-slate-500">System Administration & User Control</p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-green-500 group-hover:text-white transition-all">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-2 gap-5 pb-12">
+            
+            <a href="pump-tuning.html" class="jelly-card group">
+                <div class="icon-bubble"><i class="fas fa-tachometer-alt"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-700 group-hover:text-green-600 transition-colors">Hydraulic</h3><p class="text-[10px] font-mono font-bold text-slate-400 mt-1 uppercase">Pump Tuning</p></div>
+                <div class="absolute -bottom-6 -right-6 w-24 h-24 bg-green-400/10 rounded-full blur-xl group-hover:bg-green-400/30 transition-all duration-500"></div>
+            </a>
+
+            <a href="dar.html" class="jelly-card group">
+                <div class="icon-bubble text-blue-500"><i class="fas fa-clipboard-check"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-700 group-hover:text-blue-600 transition-colors">Activity</h3><p class="text-[10px] font-mono font-bold text-slate-400 mt-1 uppercase">Daily Report</p></div>
+                <div class="absolute -bottom-6 -right-6 w-24 h-24 bg-blue-400/10 rounded-full blur-xl group-hover:bg-blue-400/30 transition-all duration-500"></div>
+            </a>
+
+            <a href="ppu.html" class="jelly-card group">
+                <div class="icon-bubble text-amber-500"><i class="fas fa-crawler"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-700 group-hover:text-amber-600 transition-colors">U/C Inspect</h3><p class="text-[10px] font-mono font-bold text-slate-400 mt-1 uppercase">Undercarriage</p></div>
+                <div class="absolute -bottom-6 -right-6 w-24 h-24 bg-amber-400/10 rounded-full blur-xl group-hover:bg-amber-400/30 transition-all duration-500"></div>
+            </a>
+
+            <a href="toolbox.html" class="jelly-card group">
+                <div class="icon-bubble text-slate-600"><i class="fas fa-toolbox"></i></div>
+                <div><h3 class="text-xl font-bold text-slate-700 group-hover:text-slate-900 transition-colors">Toolbox</h3><p class="text-[10px] font-mono font-bold text-slate-400 mt-1 uppercase">Utilities</p></div>
+                <div class="absolute -bottom-6 -right-6 w-24 h-24 bg-slate-400/10 rounded-full blur-xl group-hover:bg-slate-400/30 transition-all duration-500"></div>
+            </a>
+            
+             <a href="setting.html" class="col-span-2 glass-panel p-4 flex items-center justify-center gap-3 hover:bg-white transition-colors cursor-pointer text-slate-500 hover:text-green-600 hover:scale-[1.01] active:scale-95 duration-300">
+                <i class="fas fa-cog"></i>
+                <span class="text-xs font-bold uppercase tracking-widest">System Preferences</span>
+            </a>
+
+        </div>
+
+        <footer class="text-center pb-8">
+            <p class="text-slate-400 text-[9px] font-mono tracking-widest">HEXINDO ADARO • MINT EDITION v3.0</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E",
+            TARGET_WIDTH: 720
+        };
+
+        // --- BUBBLE ENGINE (120FPS OPTIMIZED) ---
+        class BubbleEngine {
+            constructor() {
+                this.canvas = document.getElementById('bubble-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.bubbles = []; this.qty = 50; 
+                this.lastTime = 0;
+                this.resize(); window.addEventListener('resize', () => this.resize());
+                this.init(); requestAnimationFrame((t) => this.animate(t));
+            }
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            init() { this.bubbles = Array.from({ length: this.qty }, () => new Bubble(this.canvas)); }
+            animate(timestamp) {
+                // DELTA TIME CALCULATION FOR SMOOTH 120FPS
+                const dt = (timestamp - this.lastTime) / 16.67; 
+                this.lastTime = timestamp;
+
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.bubbles.forEach(b => { b.update(dt); b.draw(this.ctx); });
+                requestAnimationFrame((t) => this.animate(t));
+            }
+        }
+        class Bubble {
+            constructor(canvas) { this.canvas = canvas; this.reset(); }
+            reset() {
+                this.x = Math.random() * this.canvas.width;
+                this.y = this.canvas.height + (Math.random() * 100);
+                this.size = Math.random() * 15 + 5; 
+                this.speedY = (Math.random() * 0.8 + 0.3); // Base speed
+                this.speedX = (Math.random() - 0.5) * 0.4; 
+                this.opacity = Math.random() * 0.3 + 0.1;
+                this.color = Math.random() > 0.5 ? '135, 207, 58' : '74, 222, 128'; 
+            }
+            update(dt) {
+                // Apply Delta Time
+                this.y -= this.speedY * dt; 
+                this.x += this.speedX * dt;
+                if (this.y < -50) this.reset();
+            }
+            draw(ctx) {
+                ctx.fillStyle = `rgba(${this.color}, ${this.opacity})`; 
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        // --- APP LOGIC ---
+        const App = {
+            sb: supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY),
+            userNik: localStorage.getItem('userNIK'),
+            activeChat: null,
+
+            async init() {
+                new BubbleEngine();
+                this.updateTime(); setInterval(() => this.updateTime(), 1000);
+                
+                this.runAutoScale(); 
+                window.addEventListener('resize', () => { this.runAutoScale(); });
+                
+                await this.loadSession();
+                this.initChatSystem();
+            },
+
+            async loadSession() {
+                const progress = document.getElementById('splashProgress');
+                try {
+                    if (progress) progress.style.width = "40%";
+                    if (!this.userNik) throw new Error("No active session");
+                    
+                    const { data: user, error } = await this.sb.from('users').select('*').eq('nik', this.userNik).single();
+                    if (error || !user) throw new Error("Auth Failed");
+                    
+                    if (progress) progress.style.width = "80%";
+                    
+                    document.getElementById('userNameDisplay').innerText = user.full_name;
+                    document.getElementById('userNikDisplay').innerText = `NIK: ${user.nik}`;
+                    const roleBadge = document.getElementById('roleBadge');
+                    
+                    if (user.role === 'admin') {
+                        document.getElementById('adminSection')?.classList.remove('hidden');
+                        document.getElementById('notifBtn')?.classList.remove('hidden');
+                        if(roleBadge) { roleBadge.innerText = 'ROOT USER'; roleBadge.classList.add('bg-green-100', 'text-green-700'); }
+                        this.loadNotifications();
+                    } else {
+                        if(roleBadge) roleBadge.innerText = 'STANDARD USER';
+                    }
+                    this.hideSplash();
+                } catch (err) { console.error(err); this.logout(); }
+            },
+
+            initChatSystem() {
+                this.loadContacts();
+                this.sb.channel('public:messages').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => { this.handleIncomingMessage(payload.new); }).subscribe();
+                document.getElementById('chatForm').onsubmit = (e) => { e.preventDefault(); this.sendMessage(); };
+            },
+
+            async loadContacts() {
+                const { data: users } = await this.sb.from('users').select('nik, full_name').neq('nik', this.userNik).eq('status', 'active').order('full_name');
+                const list = document.getElementById('userListContainer');
+                if (!users || users.length === 0) { list.innerHTML = `<div class="text-center text-[10px] text-slate-400 font-mono py-4">NO ACTIVE USERS</div>`; return; }
+                list.innerHTML = users.map(u => `
+                    <div onclick="App.openChat('${u.nik}', '${u.full_name}')" class="p-3 bg-white/80 border border-slate-100 rounded-xl cursor-pointer hover:bg-green-50 transition-all flex items-center justify-between group active:scale-[0.98]">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center">${u.nik.substring(0,2)}</div>
+                            <div><h5 class="text-xs font-bold text-slate-700 uppercase group-hover:text-green-600">${u.full_name}</h5><p class="text-[9px] text-slate-400 font-mono">ONLINE</p></div>
+                        </div>
+                        <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                    </div>`).join('');
+            },
+
+            openChat(targetNik, targetName = "GLOBAL CHANNEL") {
+                this.activeChat = targetNik;
+                document.getElementById('contactListView').classList.add('hidden');
+                document.getElementById('chatRoomView').classList.remove('hidden');
+                document.getElementById('btnBackToContacts').classList.remove('hidden');
+                document.getElementById('chatHeaderTitle').innerText = targetName;
+                document.getElementById('chatHeaderSubtitle').innerText = targetNik === 'ALL' ? 'PUBLIC' : `PRIVATE: ${targetNik}`;
+                this.loadMessages();
+            },
+
+            showContactList() {
+                this.activeChat = null;
+                document.getElementById('contactListView').classList.remove('hidden');
+                document.getElementById('chatRoomView').classList.add('hidden');
+                document.getElementById('btnBackToContacts').classList.add('hidden');
+                document.getElementById('chatHeaderTitle').innerText = 'COMMS CENTER';
+                document.getElementById('chatHeaderSubtitle').innerText = 'GLOBAL FREQUENCY';
+            },
+
+            async loadMessages() {
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = `<div class="flex justify-center pt-10"><div class="mint-spinner" style="width:30px;height:30px;"></div></div>`;
+                
+                if (!this.activeChat) return;
+
+                let query = this.sb.from('messages').select('*').order('created_at', { ascending: true });
+                if (this.activeChat === 'ALL') {
+                    query = query.eq('receiver_nik', 'ALL');
+                } else {
+                    query = query.or(`and(sender_nik.eq.${this.userNik},receiver_nik.eq.${this.activeChat}),and(sender_nik.eq.${this.activeChat},receiver_nik.eq.${this.userNik})`);
+                }
+
+                const { data, error } = await query.limit(50);
+                container.innerHTML = '';
+
+                if (data && data.length > 0) {
+                    data.forEach(msg => this.renderMessageBubble(msg));
+                    this.scrollToBottom();
+                } else {
+                    container.innerHTML = `<div class="text-center text-xs text-slate-400 mt-10 font-mono opacity-50">START MESSAGING</div>`;
+                }
+            },
+
+            handleIncomingMessage(msg) {
+                if ((msg.receiver_nik === 'ALL' && this.activeChat === 'ALL') || (msg.receiver_nik === this.userNik && this.activeChat === msg.sender_nik)) {
+                    this.renderMessageBubble(msg);
+                } else {
+                    const b = document.getElementById('chatBadge'); if(b) { b.classList.remove('hidden'); b.classList.add('animate-bounce'); }
+                }
+            },
+
+            async sendMessage() {
+                const input = document.getElementById('chatInput');
+                const text = input.value.trim(); if(!text || !this.activeChat) return;
+                
+                const tempMsg = { sender_nik: this.userNik, content: text, created_at: new Date().toISOString() };
+                this.renderMessageBubble(tempMsg); 
+                input.value = ''; input.focus();
+
+                await this.sb.from('messages').insert([{ sender_nik: this.userNik, receiver_nik: this.activeChat, content: text }]);
+                this.scrollToBottom();
+            },
+
+            renderMessageBubble(msg) {
+                const container = document.getElementById('chatMessages');
+                if(container.innerText.includes('START MESSAGING')) container.innerHTML = '';
+                
+                const isMe = msg.sender_nik === this.userNik;
+                const div = document.createElement('div');
+                div.className = `chat-bubble ${isMe ? 'me' : 'them'}`;
+                const time = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-baseline gap-4 mb-1">
+                        <span class="text-[9px] font-bold uppercase opacity-80 tracking-wider">${isMe ? 'YOU' : msg.sender_nik}</span>
+                        <span class="text-[8px] opacity-60 font-mono">${time}</span>
+                    </div>
+                    <div class="leading-relaxed break-words font-medium">${msg.content}</div>
+                `;
+                container.appendChild(div); this.scrollToBottom();
+            },
+
+            scrollToBottom() { const c = document.getElementById('chatMessages'); if(c) c.scrollTop = c.scrollHeight; },
+
+            toggleDrawer(id) {
+                const d = document.getElementById(id), o = document.getElementById('drawerOverlay');
+                const open = d.classList.contains('open'); this.closeAllDrawers();
+                if (!open) { d.classList.add('open'); o.classList.add('visible'); if(id === 'chatDrawer') { document.getElementById('chatBadge').classList.add('hidden'); if(!this.activeChat) this.loadContacts(); } }
+            },
+            closeAllDrawers() { document.querySelectorAll('.drawer').forEach(d => d.classList.remove('open')); document.getElementById('drawerOverlay').classList.remove('visible'); },
+            
+            updateTime() { const now = new Date(); document.getElementById('liveTime').innerText = now.toLocaleTimeString('en-GB', { hour12: false, hour:'2-digit', minute:'2-digit' }); document.getElementById('liveDate').innerText = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }); },
+            
+            runAutoScale() { 
+                const s = document.getElementById('scaler-context'); if(!s) return; 
+                const w = window.innerWidth; 
+                const r = w < CONFIG.TARGET_WIDTH ? w/CONFIG.TARGET_WIDTH : 1; 
+                s.style.transform = `scale(${r})`; 
+                s.style.marginBottom = w < CONFIG.TARGET_WIDTH ? `-${(1-r)*s.offsetHeight}px` : "0px"; 
+            },
+            
+            async hideSplash() { 
+                const s = document.getElementById('splash-screen'), c = document.getElementById('scaler-context'), p = document.getElementById('splashProgress'); 
+                if (p) p.style.width = "100%"; 
+                await new Promise(r => setTimeout(r, 600)); 
+                if (s) s.style.opacity = "0"; 
+                setTimeout(() => { if (s) s.style.display = 'none'; if (c) c.classList.remove('opacity-0'); this.runAutoScale(); }, 500); 
+            },
+            
+            logout() { if (confirm("Log out form system?")) { localStorage.clear(); window.location.replace('login.html'); } },
+
+            async loadNotifications() {
+                const b = document.getElementById('notifBadge'), l = document.getElementById('notifList');
+                const { data: r } = await this.sb.from('users').select('*').eq('status', 'pending');
+                if (r && r.length > 0) { 
+                    b.classList.remove('hidden'); 
+                    l.innerHTML = r.map(q => `<div class="bg-white/90 p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-3" id="req-${q.nik}"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><i class="fas fa-user"></i></div><div><p class="text-sm font-bold text-slate-700">${q.full_name}</p><p class="text-[10px] text-slate-400">NIK: ${q.nik}</p></div></div><div class="flex gap-2"><button onclick="App.handleRequest('${q.nik}', 'approve')" class="flex-1 py-2 bg-green-500 text-white rounded-lg text-xs font-bold hover:bg-green-600">Accept</button><button onclick="App.handleRequest('${q.nik}', 'reject')" class="flex-1 py-2 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold hover:bg-red-100 hover:text-red-500">Reject</button></div></div>`).join(''); 
+                } else { 
+                    b.classList.add('hidden'); l.innerHTML = `<div class="text-center py-10 text-slate-300 text-xs font-bold uppercase">All caught up</div>`; 
+                }
+            },
+            async handleRequest(nik, act) {
+                const el = document.getElementById(`req-${nik}`); if(el) el.style.opacity = '0.5';
+                if (act === 'approve') { const { error } = await this.sb.from('users').update({ status: 'active' }).eq('nik', nik); if (!error) { this.loadNotifications(); } }
+                else { const { error } = await this.sb.from('users').delete().eq('nik', nik); if (!error) { this.loadNotifications(); } }
+            }
+        };
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

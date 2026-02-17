@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Toolbox Pro | Mecha White</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f1f5f9">
+    
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('/mecha-version/login.html'); }
+    </script>
+
+    <script src="/js/tailwindcss.js"></script>
+    <script src="/js/supabase-js@2.js"></script>
+    <link href="/css/all.min.css" rel="stylesheet">
+    <link href="/css/rajdhani.css" rel="stylesheet">
+    <link href="/css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.9);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #2563eb; /* Blue */
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: radial-gradient(at 0% 0%, hsla(210,100%,96%,1) 0, transparent 50%), radial-gradient(at 100% 0%, hsla(210,100%,93%,1) 0, transparent 50%);
+            min-height: 100vh; color: var(--text-primary); margin: 0; padding: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+        }
+
+        #mecha-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0.6; }
+
+        #scaler-context {
+            width: var(--base-width); transform-origin: top center; transition: transform 0.2s ease-out;
+            flex-shrink: 0; padding: 1.5rem; position: relative; z-index: 10;
+        }
+
+        .glass-mecha { 
+            background: var(--glass-bg); backdrop-filter: blur(20px) saturate(120%); 
+            border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+            border-radius: 16px; position: relative; overflow: hidden; margin-bottom: 1.5rem;
+        }
+        .glass-mecha::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%;
+            background: linear-gradient(180deg, var(--accent-color), transparent); opacity: 0.6;
+        }
+
+        /* TYPOGRAPHY */
+        .header-label { 
+            font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; 
+            color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; 
+            display: block; margin-bottom: 6px; 
+        }
+        .input-mecha { 
+            border: 1px solid #cbd5e1; border-radius: 10px; font-weight: 600; width: 100%; 
+            padding: 12px 14px; background: rgba(255, 255, 255, 0.7); font-size: 15px; 
+            outline: none; transition: 0.3s; color: var(--text-primary); font-family: 'Rajdhani', sans-serif;
+        }
+        .input-mecha:focus { border-color: var(--accent-color); background: #ffffff; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+        .input-readonly { background: #e2e8f0 !important; color: #94a3b8 !important; border-style: dashed; }
+
+        /* BUTTONS */
+        .btn-mecha { position: relative; overflow: hidden; transition: all 0.3s; transform: skew(-10deg); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+        .btn-mecha span, .btn-mecha i { transform: skew(10deg); }
+        .btn-mecha:active { transform: skew(-10deg) scale(0.95); }
+
+        /* FILTER PILLS */
+        .filter-pill { 
+            padding: 8px 16px; border-radius: 8px; font-size: 11px; font-weight: 700; 
+            background: #f1f5f9; color: var(--text-secondary); border: 1px solid #cbd5e1; 
+            cursor: pointer; transition: all 0.2s; font-family: 'Rajdhani', sans-serif; text-transform: uppercase;
+        }
+        .filter-pill.active { 
+            background: var(--accent-color); color: white; border-color: var(--accent-color); 
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+        }
+
+        /* TABLE */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        thead th { 
+            background: #f8fafc; font-size: 12px; text-transform: uppercase; color: var(--text-secondary); 
+            border-bottom: 2px solid #e2e8f0; padding: 14px; font-weight: 800; text-align: center; 
+            position: sticky; top: 0; z-index: 20; 
+        }
+        tbody td { 
+            border-bottom: 1px solid #f1f5f9; padding: 12px 8px; font-size: 14px; 
+            vertical-align: middle; color: var(--text-primary); font-weight: 600; 
+        }
+
+        /* ROW STYLES */
+        .row-baik { background-color: rgba(16, 185, 129, 0.08) !important; border-left: 4px solid var(--success-color); }
+        .row-rusak { background-color: rgba(245, 158, 11, 0.08) !important; border-left: 4px solid var(--warning-color); }
+        .row-hilang { background-color: rgba(239, 68, 68, 0.08) !important; border-left: 4px solid var(--danger-color); }
+
+        /* RADIO BUTTONS */
+        input[type="radio"] { 
+            appearance: none; width: 20px; height: 20px; border: 2px solid #cbd5e1; 
+            border-radius: 50%; cursor: pointer; transition: 0.2s; position: relative;
+        }
+        input[type="radio"]:checked { border-color: transparent; transform: scale(1.1); }
+        input[type="radio"][value="B"]:checked { background: var(--success-color); }
+        input[type="radio"][value="R"]:checked { background: var(--warning-color); }
+        input[type="radio"][value="H"]:checked { background: var(--danger-color); }
+        input[type="radio"]:checked::after {
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 8px; height: 8px; background: white; border-radius: 50%;
+        }
+
+        /* DRAWERS */
+        #drawerOverlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        #drawerOverlay.visible { opacity: 1; pointer-events: auto; }
+        
+        #sideDrawer { 
+            position: fixed; top: 0; right: 0; height: 100%; width: 300px; z-index: 51; 
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-left: 1px solid #e2e8f0;
+            transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; padding: 1.5rem; box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+        #sideDrawer.open { transform: translateX(0); }
+
+        #bottomDrawer {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 51;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
+            border-top: 1px solid #e2e8f0; border-radius: 24px 24px 0 0;
+            transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 1.5rem; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+        }
+        #bottomDrawer.open { transform: translateY(0); }
+
+        /* LOADER */
+        #splash-screen { position: fixed; inset: 0; background: #f8fafc; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s; }
+        .loader-mecha { width: 60px; height: 60px; border: 4px solid #e2e8f0; border-top: 4px solid var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .fade-out { opacity: 0; visibility: hidden; }
+        .hidden { display: none !important; }
+
+        /* FAB */
+        .fab {
+            position: fixed; right: 24px; bottom: 24px; width: 60px; height: 60px;
+            background: var(--accent-color); color: white; border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); z-index: 40;
+            transition: all 0.2s; cursor: pointer; transform: rotate(0deg);
+        }
+        .fab:hover { transform: rotate(90deg); }
+        .fab:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+    
+    <canvas id="mecha-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="loader-mecha"></div>
+        <div class="mt-6 text-center">
+            <p class="text-slate-800 font-bold text-sm tracking-[0.3em] uppercase italic">TOOLBOX</p>
+            <p class="text-blue-500 text-[10px] font-mono font-bold tracking-widest mt-1">CHECKLIST SYSTEM V.2.2</p>
+        </div>
+    </div>
+
+    <div id="drawerOverlay" onclick="closeAllDrawers()"></div>
+
+    <aside id="sideDrawer">
+        <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+            <span class="text-xs font-black text-slate-500 font-mono uppercase">/// ACTION_CENTER</span>
+            <button onclick="closeAllDrawers()" class="text-slate-400 hover:text-red-500 text-xl"><i class="fas fa-times"></i></button>
+        </div>
+        
+        <div class="space-y-4 mb-8">
+            <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-100 flex justify-between items-center">
+                <span class="text-xs font-bold text-emerald-600 uppercase"><i class="fas fa-check-circle mr-2"></i>GOOD (B)</span>
+                <span id="countB" class="text-2xl font-black text-emerald-600 font-mono">0</span>
+            </div>
+            <div class="p-4 rounded-xl bg-amber-50 border border-amber-100 flex justify-between items-center">
+                <span class="text-xs font-bold text-amber-600 uppercase"><i class="fas fa-exclamation-triangle mr-2"></i>BROKEN (R)</span>
+                <span id="countR" class="text-2xl font-black text-amber-600 font-mono">0</span>
+            </div>
+            <div class="p-4 rounded-xl bg-red-50 border border-red-100 flex justify-between items-center">
+                <span class="text-xs font-bold text-red-600 uppercase"><i class="fas fa-times-circle mr-2"></i>LOST (H)</span>
+                <span id="countH" class="text-2xl font-black text-red-600 font-mono">0</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 mt-auto">
+            <button onclick="prosesSimpan()" class="btn-mecha bg-blue-600 text-white py-4 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-500">
+                <span class="text-xs font-black tracking-widest"><i class="fas fa-cloud-upload-alt mr-2"></i>SYNC CLOUD</span>
+            </button>
+            <button onclick="checkAllBaik()" class="btn-mecha bg-emerald-500 text-white py-4 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-400">
+                <span class="text-xs font-black tracking-widest"><i class="fas fa-check-double mr-2"></i>SET ALL GOOD</span>
+            </button>
+            <button onclick="resetForm()" class="btn-mecha bg-slate-100 text-slate-600 py-4 rounded-xl hover:bg-slate-200">
+                <span class="text-xs font-black tracking-widest"><i class="fas fa-undo mr-2"></i>RESET FORM</span>
+            </button>
+        </div>
+    </aside>
+
+    <aside id="bottomDrawer">
+        <div class="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
+            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">RECENT LOGS</h3>
+            <button onclick="fetchHistory()" class="text-blue-500 text-[10px] font-bold uppercase"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        </div>
+        <div class="overflow-y-auto flex-1">
+            <table class="w-full">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="text-left pl-4 py-2 text-[10px] text-slate-500">DATE CHECKED</th>
+                        <th class="text-right pr-4 py-2 text-[10px] text-slate-500">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="histBody"></tbody>
+            </table>
+        </div>
+    </aside>
+
+    <div id="scaler-context" class="space-y-6">
+        
+        <header class="glass-mecha p-6 flex justify-between items-center no-print">
+            <div class="flex items-center gap-5">
+                <a href="/mecha-version/index.html" class="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-slate-600 shadow-sm border border-slate-200 hover:text-blue-600 transition-all text-xl">
+                    <i class="fas fa-home"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800 leading-none tracking-tight uppercase" style="font-family: 'JetBrains Mono'">TOOLBOX <span class="text-blue-600">PRO</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <p id="roleText" class="text-[10px] font-bold text-slate-400 tracking-widest uppercase font-mono">NIK: LOADING...</p>
+                    </div>
+                </div>
+            </div>
+            <div id="currentMonthBadge" class="px-4 py-2 bg-slate-100 rounded-xl text-xs font-black text-slate-500 uppercase border border-slate-200 shadow-sm">
+                --- 2026
+            </div>
+        </header>
+
+        <div class="glass-mecha p-7">
+            <input type="hidden" id="editingId">
+            <div class="grid grid-cols-2 gap-5 mb-5">
+                <div>
+                    <label class="header-label text-slate-400 text-[10px] font-bold uppercase block mb-1">ASSET ID</label>
+                    <input type="text" id="asset" class="input-mecha bg-slate-50 font-mono text-slate-500 font-bold" readonly>
+                </div>
+                <div>
+                    <label class="header-label text-slate-400 text-[10px] font-bold uppercase block mb-1">DATE</label>
+                    <input type="date" id="tgl" onchange="updateMonthBadge()" class="input-mecha">
+                </div>
+            </div>
+            <div>
+                <label class="header-label text-slate-400 text-[10px] font-bold uppercase block mb-1">TECHNICIAN</label>
+                <input type="text" id="pic" class="input-mecha bg-slate-50 text-slate-600 font-bold uppercase" readonly placeholder="Fetching Name...">
+            </div>
+        </div>
+
+        <div class="glass-mecha overflow-hidden pb-4">
+            <div class="p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center sticky top-0 z-30">
+                <span class="text-xs font-black text-slate-600 uppercase tracking-wider"><i class="fas fa-list-ul mr-2 text-slate-400"></i>INSPECTION LIST</span>
+                <div class="flex gap-2">
+                    <div onclick="applyFilter('ALL')" class="filter-pill active" id="f-ALL">All</div>
+                    <div onclick="applyFilter('B')" class="filter-pill" id="f-B">B</div>
+                    <div onclick="applyFilter('R')" class="filter-pill" id="f-R">R</div>
+                    <div onclick="applyFilter('H')" class="filter-pill" id="f-H">H</div>
+                </div>
+            </div>
+            
+            <div class="overflow-y-auto max-h-[500px]">
+                <table class="w-full">
+                    <thead>
+                        <tr>
+                            <th width="50" class="text-slate-400">NO</th>
+                            <th class="text-left text-slate-600 pl-4">ITEM DESCRIPTION</th>
+                            <th width="60" class="text-emerald-500">GOOD</th>
+                            <th width="60" class="text-amber-500">BAD</th>
+                            <th width="60" class="text-red-500">LOST</th>
+                        </tr>
+                    </thead>
+                    <tbody id="toolTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex justify-center mt-8 pb-24">
+            <button onclick="openHistory()" class="btn-mecha bg-white text-slate-500 border border-slate-200 px-8 py-4 rounded-full shadow-sm hover:text-blue-600 hover:border-blue-300 hover:shadow-md transition-all">
+                <span class="text-xs font-black uppercase tracking-widest">VIEW HISTORY LOGS ↓</span>
+            </button>
+        </div>
+    </div>
+
+    <div onclick="toggleDrawer()" class="fab">
+        <i class="fas fa-layer-group text-2xl"></i>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+        const sbClient = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+
+        const listAlat = ["Adjustable wrench L=12\"", "Adjustable wrench pipe L=10\"", "Allen key 12mm", "Allen key 14mm", "Allen key 17mm", "Allen key set 2-10mm", "Brush steel W=30mm", "Catridge belt wrench 125mm", "Chisel plate W=11 L=140mm", "Combination wrench 24mm", "Combination wrench 27mm", "Combination wrench 30mm", "Combination wrench 32mm", "Combination wrench 36mm", "Combination wrench 41mm", "Extention socket 1/2\" L=10\"", "Extention socket 1/2\" L=5\"", "Extention socket 3/4\" L=18\"", "Extention socket 3/4\" L=8\"", "Extention socket 1/2\" U-joint", "Feeler gauge set", "Files set (5 pcs) 150mm", "Files plate type 250mm", "Files round type 250mm", "Haksaw iron & blade", "Half moon wrench 14x17", "Half moon wrench 19x22", "Hammer besi 0.5kg", "Hammer karet 0.5kg", "Hammer plastik 0.5kg", "Handle socket T 1/2\"", "Handle socket T 3/4\"", "Handle rachet 1/2\"", "Handle rachet 3/4\"", "Magnetic stick L=50cm", "Multitester CD 800", "Open end 6x7", "Open end 8x9", "Open end 10x11", "Open end 12x13", "Open end 14x15", "Open end 16x17", "Open end 18x19", "Open end 20x22", "Open end 24x26", "Open end 36x41", "Paint brush", "Pliers combination 200mm", "Pliers side cutting 200mm", "Pliers water pump", "Pliers viece grip", "Pliers snap ring (in)", "Pliers snap ring (out)", "Pry bar L=40cm", "Punch drift 150mm", "Punch center 130mm", "Ring spanner 6x7", "Ring spanner 8x9", "Ring spanner 10x11", "Ring spanner 12x13", "Ring spanner 14x15", "Ring spanner 16x17", "Ring spanner 18x19", "Ring spanner 20x22", "Ring spanner 24x26", "Scale meter roll 2.5m", "Scrape blade W=25mm", "Screw drive plus 75mm", "Screw drive plus 100mm", "Screw drive plus 125mm", "Screw drive plus 150mm", "Screw drive plate 75mm", "Screw drive plate 100mm", "Screw drive plate 150mm", "Screw drive plate 200mm", "Socket (12) 1/2\" 10mm", "Socket (12) 1/2\" 11mm", "Socket (12) 1/2\" 12mm", "Socket (12) 1/2\" 13mm", "Socket (12) 1/2\" 14mm", "Socket (12) 1/2\" 15mm", "Socket (12) 1/2\" 16mm", "Socket (12) 1/2\" 17mm", "Socket (12) 1/2\" 18mm", "Socket (12) 1/2\" 19mm", "Socket (12) 1/2\" 20mm", "Socket (12) 1/2\" 21mm", "Socket (12) 1/2\" 22mm", "Socket (12) 3/4\" 22mm", "Socket (12) 3/4\" 23mm", "Socket (12) 3/4\" 24mm", "Socket (12) 3/4\" 27mm", "Socket (12) 3/4\" 28mm", "Socket (12) 3/4\" 29mm", "Socket (12) 3/4\" 30mm", "Socket (12) 3/4\" 32mm", "Socket (12) 3/4\" 36mm", "Socket (12) 3/4\" 38mm", "Socket (12) 3/4\" 41mm", "Socket (12) 3/4\" 46mm", "Stop watch digital", "Thermometer 0-200C", "Treeds gauge set", "Tools box 3 step", "Test pen DC", "Vernier caliper 150mm"];
+
+        const userNik = localStorage.getItem('userNIK') || 'UNKNOWN';
+        const userNameCache = localStorage.getItem('userName') || 'TECHNICIAN';
+
+        // --- PARTICLE ENGINE ---
+        const canvas = document.getElementById('mecha-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        class MechaParticle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 1;
+                this.speedY = (Math.random() - 0.5) * 0.5; this.speedX = (Math.random() - 0.5) * 0.5;
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() { this.y += this.speedY; this.x += this.speedX; if (this.y < 0 || this.y > canvas.height || this.x < 0 || this.x > canvas.width) this.reset(); }
+            draw() { ctx.fillStyle = `rgba(148, 163, 184, ${this.opacity})`; ctx.beginPath(); ctx.rect(this.x, this.y, this.size, this.size); ctx.fill(); }
+        }
+        function initParticles() { particles = []; for (let i = 0; i < 80; i++) particles.push(new MechaParticle()); }
+        function animateParticles() { ctx.clearRect(0, 0, canvas.width, canvas.height); particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animateParticles); }
+
+        // --- APP LOGIC (ES8) ---
+        const App = {
+            async init() {
+                resizeCanvas(); initParticles(); animateParticles();
+                runAutoScale();
+                window.addEventListener('resize', () => { resizeCanvas(); runAutoScale(); });
+
+                this.initTable();
+                
+                document.getElementById('asset').value = userNik;
+                document.getElementById('pic').value = userNameCache.toUpperCase();
+                document.getElementById('tgl').valueAsDate = new Date();
+                updateMonthBadge();
+                
+                await this.syncUserData();
+                
+                setTimeout(() => {
+                    const splash = document.getElementById('splash-screen');
+                    splash.classList.add('fade-out');
+                    setTimeout(() => splash.style.display = 'none', 500);
+                }, 800);
+            },
+
+            async syncUserData() {
+                try {
+                    const { data, error } = await sbClient.from('users').select('full_name').eq('nik', userNik).single();
+                    if (data && !error) {
+                        document.getElementById('pic').value = data.full_name.toUpperCase();
+                        document.getElementById('roleText').innerText = `NIK: ${userNik} | ${data.full_name}`;
+                        localStorage.setItem('userName', data.full_name.toUpperCase());
+                    } else {
+                         document.getElementById('roleText').innerText = `NIK: ${userNik} | ${userNameCache}`;
+                    }
+                } catch (e) { console.error("Sync failed", e); }
+            },
+
+            initTable() {
+                document.getElementById('toolTableBody').innerHTML = listAlat.map((name, i) => `
+                    <tr id="row-${i+1}" class="group hover:bg-slate-50 transition-colors">
+                        <td class="text-center text-slate-400 font-mono text-[10px] font-bold">${i + 1}</td>
+                        <td class="pl-4 pr-2 text-slate-700 font-medium">${name}</td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="B" onclick="App.updateRowStyle(${i+1}, 'B')"></td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="R" onclick="App.updateRowStyle(${i+1}, 'R')"></td>
+                        <td class="text-center"><input type="radio" name="t-${i+1}" value="H" onclick="App.updateRowStyle(${i+1}, 'H')"></td>
+                    </tr>`).join('');
+            },
+
+            updateRowStyle(idx, status) {
+                const tr = document.getElementById(`row-${idx}`);
+                tr.classList.remove('row-baik', 'row-rusak', 'row-hilang');
+                if (status) tr.classList.add(`row-${status === 'B' ? 'baik' : status === 'R' ? 'rusak' : 'hilang'}`);
+                this.refreshSummary();
+            },
+
+            refreshSummary() {
+                let b=0, r=0, h=0;
+                listAlat.forEach((_, i) => {
+                    const v = document.querySelector(`input[name="t-${i+1}"]:checked`)?.value;
+                    if(v === 'B') b++; else if(v === 'R') r++; else if(v === 'H') h++;
+                });
+                document.getElementById('countB').innerText = b;
+                document.getElementById('countR').innerText = r;
+                document.getElementById('countH').innerText = h;
+            }
+        };
+
+        // --- GLOBAL EXPORTS ---
+        window.App = App;
+        window.checkAllBaik = () => {
+            listAlat.forEach((_, i) => {
+                const rb = document.querySelector(`input[name="t-${i+1}"][value="B"]`);
+                if(rb) { rb.checked = true; App.updateRowStyle(i+1, 'B'); }
+            });
+            App.refreshSummary();
+        };
+
+        window.applyFilter = (type) => {
+            document.querySelectorAll('.filter-pill').forEach(el => el.classList.remove('active'));
+            document.getElementById(`f-${type}`).classList.add('active');
+            
+            listAlat.forEach((_, i) => {
+                const tr = document.getElementById(`row-${i+1}`);
+                const val = document.querySelector(`input[name="t-${i+1}"]:checked`)?.value;
+                if (type === 'ALL') tr.classList.remove('hidden');
+                else if (type === 'B' && val === 'B') tr.classList.remove('hidden');
+                else if (type === 'R' && val === 'R') tr.classList.remove('hidden');
+                else if (type === 'H' && val === 'H') tr.classList.remove('hidden');
+                else tr.classList.add('hidden');
+            });
+        };
+
+        window.prosesSimpan = async () => {
+            const btn = document.querySelector('button[onclick="prosesSimpan()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<span><i class="fas fa-spinner fa-spin mr-2"></i>SYNCING...</span>`;
+
+            const vals = listAlat.map((_, i) => document.querySelector(`input[name="t-${i+1}"]:checked`)?.value || null);
+            if(vals.includes(null)) { alert("⚠️ Check all items first!"); btn.innerHTML = originalText; return; }
+
+            const payload = { nik: userNik, pic_name: document.getElementById('pic').value, check_date: document.getElementById('tgl').value, branch: "ADARO PROJECT", items_data: vals };
+            const id = document.getElementById('editingId').value;
+            const res = id ? await sbClient.from('toolbox_reports').update(payload).eq('id', id) : await sbClient.from('toolbox_reports').insert([payload]);
+            
+            if(!res.error) { alert("✅ Data Synced Successfully!"); closeAllDrawers(); fetchHistory(); resetForm(); } 
+            else { alert("Error: " + res.error.message); }
+            btn.innerHTML = originalText;
+        };
+
+        window.fetchHistory = async () => {
+            const { data } = await sbClient.from('toolbox_reports').select('*').eq('nik', userNik).order('check_date', {ascending: false}).limit(10);
+            document.getElementById('histBody').innerHTML = (data || []).map(row => `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <td class="pl-4 py-3 font-mono text-slate-600 text-[11px] font-bold">${new Date(row.check_date).toLocaleDateString()}</td>
+                    <td class="text-right pr-4 py-3">
+                        <button onclick='loadData(${JSON.stringify(row)})' class="bg-white text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-blue-50 transition-colors">LOAD</button>
+                    </td>
+                </tr>`).join('');
+        };
+
+        window.loadData = (row) => {
+            document.getElementById('editingId').value = row.id;
+            document.getElementById('tgl').value = row.check_date;
+            row.items_data.forEach((val, i) => {
+                const rad = document.querySelector(`input[name="t-${i+1}"][value="${val}"]`);
+                if(rad) { rad.checked = true; App.updateRowStyle(i+1, val); }
+            });
+            App.refreshSummary(); closeAllDrawers(); updateMonthBadge();
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        window.resetForm = () => {
+            document.getElementById('editingId').value = "";
+            document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+            document.querySelectorAll('tr').forEach(tr => tr.classList.remove('row-baik','row-rusak','row-hilang'));
+            App.refreshSummary(); closeAllDrawers();
+        };
+
+        // --- DRAWERS ---
+        window.toggleDrawer = () => { closeAllDrawers(); document.getElementById('sideDrawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('visible'); };
+        window.openHistory = () => { closeAllDrawers(); document.getElementById('bottomDrawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('visible'); fetchHistory(); };
+        window.closeAllDrawers = () => { document.getElementById('sideDrawer').classList.remove('open'); document.getElementById('bottomDrawer').classList.remove('open'); document.getElementById('drawerOverlay').classList.remove('visible'); };
+
+        // --- HELPERS ---
+        function runAutoScale() {
+            const s = document.getElementById('scaler-context');
+            const scaleRatio = window.innerWidth < 720 ? window.innerWidth / 720 : 1;
+            s.style.transform = `scale(${scaleRatio})`;
+            s.style.marginBottom = window.innerWidth < 720 ? `-${(1 - scaleRatio) * s.offsetHeight}px` : "0px";
+        }
+        function updateMonthBadge() {
+            const d = new Date(document.getElementById('tgl').value);
+            const m = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+            document.getElementById('currentMonthBadge').innerText = `${m[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        window.onload = () => App.init();
+    </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Terminal Synced:', reg.scope))
+                .catch(err => console.log('Sync Failed:', err));
+        });
+    }
+    </script>
+
+</body>
+</html>

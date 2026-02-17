@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Settings Mint | Hexindo Fleet</title>
+    <meta name="theme-color" content="#f0fdf4">
+    <link rel="manifest" href="../manifest.json">
+
+    <script>
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
+    </script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --base-width: 720px;
+            --mint-primary: #87cf3a;
+            --mint-dark: #2f343f;
+            --mint-glass: rgba(255, 255, 255, 0.75);
+            --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        html { scroll-behavior: smooth; }
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background: linear-gradient(135deg, #e0eecf 0%, #f0fdf4 100%);
+            min-height: 100vh; margin: 0; overflow-x: hidden;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--mint-dark);
+            -webkit-tap-highlight-color: transparent;
+            transform: translateZ(0); backface-visibility: hidden;
+        }
+
+        #bubble-canvas { 
+            position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; 
+            will-change: transform;
+        }
+
+        #scaler-context {
+            width: var(--base-width);
+            transform-origin: top center;
+            transition: transform 0.4s var(--ease-out-expo), opacity 0.8s ease;
+            flex-shrink: 0; padding: 2rem; position: relative; z-index: 10;
+        }
+
+        .jelly-panel { 
+            background: var(--mint-glass); 
+            backdrop-filter: blur(25px) saturate(140%); 
+            -webkit-backdrop-filter: blur(25px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 15px 40px -10px rgba(135, 207, 58, 0.15);
+            border-radius: 32px;
+            position: relative; overflow: hidden;
+            margin-bottom: 2rem;
+            transition: transform 0.4s var(--ease-out-expo);
+        }
+
+        .input-mint { 
+            border: 2px solid transparent; border-radius: 20px; font-weight: 600; width: 100%; 
+            padding: 18px 20px; background: rgba(255, 255, 255, 0.6); font-size: 15px;
+            outline: none; transition: all 0.4s var(--ease-out-expo); color: var(--mint-dark); 
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .input-mint:focus { 
+            border-color: var(--mint-primary); background: #ffffff; 
+            box-shadow: 0 0 0 5px rgba(135, 207, 58, 0.15); 
+        }
+
+        .btn-mint {
+            display: inline-flex; align-items: center; justify-content: center; 
+            cursor: pointer; border-radius: 20px; 
+            transition: all 0.4s var(--ease-out-expo);
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .btn-mint:active { transform: scale(0.95); }
+
+        .theme-card {
+            border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease;
+        }
+        .theme-card.active {
+            border-color: var(--mint-primary); background: rgba(135, 207, 58, 0.1); transform: scale(1.02);
+        }
+
+        /* Table Styling */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        thead th { 
+            background: rgba(248, 250, 252, 0.8); font-size: 11px; text-transform: uppercase; 
+            color: #64748b; padding: 18px; font-weight: 800; text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        tbody td { 
+            border-bottom: 1px solid #f1f5f9; padding: 18px; font-size: 14px; 
+            vertical-align: middle; transition: background 0.2s;
+        }
+        tbody tr:hover td { background: rgba(135, 207, 58, 0.1); }
+
+        #splash-screen {
+            position: fixed; inset: 0; background: #f0fdf4; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 9999; transition: opacity 0.5s ease-out;
+        }
+        .mint-spinner {
+            width: 50px; height: 50px; border-radius: 50%;
+            border: 5px solid #dcfce7; border-top-color: var(--mint-primary);
+            animation: spin 0.8s ease-in-out infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    
+    <canvas id="bubble-canvas"></canvas>
+
+    <div id="splash-screen">
+        <div class="mint-spinner"></div>
+        <p class="mt-4 text-xs font-bold text-green-600 uppercase tracking-widest">Loading System</p>
+    </div>
+
+    <div id="scaler-context" class="opacity-0">
+        
+        <header class="jelly-panel p-6 flex justify-between items-center bg-[#2f343f] !text-white group">
+            <div class="flex items-center gap-5">
+                <a href="index.html" class="h-12 w-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg shadow-green-500/30 hover:scale-110 hover:rotate-12 transition-all">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold leading-none tracking-tight">HEXINDO <span class="text-green-400">MINT</span></h1>
+                    <p class="text-[10px] text-slate-400 font-mono tracking-widest uppercase mt-1">System Configuration</p>
+                </div>
+            </div>
+            <div id="roleBadge" class="px-4 py-1.5 bg-slate-700 rounded-full text-[10px] font-bold text-green-400 border border-slate-600 font-mono shadow-inner">
+                VERIFYING...
+            </div>
+        </header>
+
+        <section class="jelly-panel p-8">
+            <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm">
+                    <i class="fas fa-palette text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-slate-700">Interface Theme</h2>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-wide font-bold">Select Visual Style</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div onclick="selectTheme('mint')" id="card-mint" class="theme-card p-4 rounded-2xl bg-white shadow-sm flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center border-2 border-green-200"><i class="fas fa-leaf text-green-500 text-2xl"></i></div>
+                    <div class="text-center"><h3 class="text-sm font-bold text-slate-700">MINT FRESH</h3><p class="text-[9px] text-slate-400 uppercase">Clean UI</p></div>
+                </div>
+                <div onclick="selectTheme('mecha')" id="card-mecha" class="theme-card p-4 rounded-2xl bg-slate-800 shadow-sm flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center border-2 border-cyan-500"><i class="fas fa-robot text-cyan-400 text-2xl"></i></div>
+                    <div class="text-center"><h3 class="text-sm font-bold text-white">MECHA DARK</h3><p class="text-[9px] text-slate-400 uppercase">Sci-Fi UI</p></div>
+                </div>
+            </div>
+            <button onclick="applyTheme()" class="btn-mint w-full bg-blue-500 text-white py-4 shadow-lg hover:bg-blue-600">Apply & Reload System <i class="fas fa-sync-alt ml-2 text-xs"></i></button>
+        </section>
+
+        <section id="adminPanel" class="jelly-panel p-8 hidden border-l-8 border-green-500">
+            <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-white shadow-md">
+                    <i class="fas fa-user-plus text-lg"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">Deploy New Unit</h2>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wide font-bold">Authorize Personnel</p>
+                </div>
+            </div>
+            <form id="addUserForm" class="space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <input type="text" id="regNik" class="input-mint uppercase text-green-700" placeholder="Input NIK (e.g. H123...)" required>
+                    <input type="text" id="regName" class="input-mint uppercase" placeholder="Full Name" required>
+                </div>
+                <button type="submit" id="btnDeploy" class="btn-mint w-full bg-slate-800 text-white py-4 shadow-xl hover:bg-slate-700 hover:shadow-2xl">
+                    Authorize Access <i class="fas fa-check ml-2 text-xs"></i>
+                </button>
+            </form>
+        </section>
+
+        <section id="userListPanel" class="jelly-panel p-0 hidden">
+            <div class="p-6 bg-slate-50/80 flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-database text-slate-400"></i>
+                    <h2 class="text-xs font-bold uppercase tracking-widest text-slate-600">Identity Database</h2>
+                </div>
+                <div class="relative w-full sm:w-auto group">
+                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchBar" onkeyup="searchNIK()" class="pl-10 pr-4 py-2 text-sm font-bold border-2 border-slate-200 rounded-full w-full sm:w-64 outline-none focus:border-green-400 focus:bg-white bg-slate-100 transition-all" placeholder="Search NIK...">
+                </div>
+            </div>
+            <div class="overflow-x-auto max-h-[500px]">
+                <table>
+                    <thead class="sticky top-0 z-20 shadow-sm"><tr><th class="pl-8">NIK ID</th><th>Identity</th><th>Status</th><th class="text-right pr-8">Actions</th></tr></thead>
+                    <tbody id="userTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="jelly-panel p-8">
+            <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 shadow-sm"><i class="fas fa-fingerprint text-xl"></i></div>
+                <div><h2 class="text-lg font-bold text-slate-700">Security Key</h2><p class="text-[10px] text-slate-400 uppercase tracking-wide font-bold">Update Personal Access</p></div>
+            </div>
+            <form id="changePassForm" class="space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <input type="password" id="newPass" class="input-mint" placeholder="New Password" required>
+                    <input type="password" id="confirmPass" class="input-mint" placeholder="Confirm Password" required>
+                </div>
+                <button type="submit" class="btn-mint w-full bg-green-500 text-white py-4 shadow-lg hover:bg-green-600">Update Password <i class="fas fa-arrow-right ml-2 text-xs"></i></button>
+            </form>
+        </section>
+
+        <footer class="text-center py-8">
+            <button onclick="logout()" class="text-red-400 text-xs font-bold uppercase tracking-widest hover:text-red-600 mb-4"><i class="fas fa-power-off mr-1"></i> Terminate Session</button>
+            <p class="text-slate-300 text-[10px] font-bold uppercase tracking-[0.4em]">Mint Edition v3.1</p>
+        </footer>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SB_URL: "https://corpgiuxyhfxdnqwwmlv.supabase.co",
+            SB_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E"
+        };
+        const sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        const currentNik = localStorage.getItem('userNIK');
+        let selectedTheme = localStorage.getItem('appTheme') || 'mint';
+
+        // --- THEME ---
+        function selectTheme(theme) {
+            selectedTheme = theme;
+            document.querySelectorAll('.theme-card').forEach(el => el.classList.remove('active'));
+            document.getElementById(`card-${theme}`).classList.add('active');
+        }
+        function applyTheme() {
+            localStorage.setItem('appTheme', selectedTheme);
+            if (selectedTheme === 'mecha') window.location.href = '../mecha-version/setting.html';
+            else window.location.href = '../mint-version/setting.html';
+        }
+        function loadCurrentThemeUI() { selectTheme(localStorage.getItem('appTheme') || 'mint'); }
+
+        // --- INIT ---
+        async function initPage() {
+            loadCurrentThemeUI();
+            if (!currentNik) { window.location.href = "login.html"; return; }
+            try {
+                const { data: user, error } = await sb.from('users').select('role').eq('nik', currentNik).single();
+                if (error || !user) throw new Error("Access Denied");
+                
+                const isAdmin = (user.role === 'admin');
+                const badge = document.getElementById('roleBadge');
+                badge.innerHTML = isAdmin ? '<i class="fas fa-shield-alt mr-1"></i> ROOT ADMIN' : '<i class="fas fa-user-cog mr-1"></i> TECHNICIAN';
+                
+                if(isAdmin) {
+                    badge.classList.replace('bg-slate-700', 'bg-green-500'); badge.classList.replace('text-green-400', 'text-white');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    document.getElementById('userListPanel').classList.remove('hidden');
+                    await fetchUsers();
+                }
+            } catch (err) { console.error(err); }
+            setTimeout(() => { document.getElementById('splash-screen').style.opacity = '0'; document.getElementById('scaler-context').classList.remove('opacity-0'); setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500); }, 500);
+            runAutoScale();
+        }
+
+        // --- ADMIN FUNCS ---
+        async function fetchUsers() {
+            const { data } = await sb.from('users').select('*').order('full_name');
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = (data || []).map(u => `
+                <tr class="transition-colors group">
+                    <td class="pl-8 font-mono font-bold text-green-600 group-hover:text-green-700 border-l-4 border-transparent group-hover:border-green-400">${u.nik}</td>
+                    <td><div class="font-bold text-slate-700 uppercase">${u.full_name}</div><div class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">${u.role}</div></td>
+                    <td><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.status === 'suspended' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}">${u.status || 'active'}</span></td>
+                    <td class="text-right pr-8 space-x-1">
+                        <button onclick="toggleStatus('${u.nik}', '${u.status}')" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-green-600 hover:border-green-400 shadow-sm transition-all"><i class="fas fa-power-off"></i></button>
+                        <button onclick="resetUserPass('${u.nik}')" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-400 shadow-sm transition-all"><i class="fas fa-key"></i></button>
+                    </td>
+                </tr>`).join('');
+            runAutoScale();
+        }
+
+        async function toggleStatus(nik, status) {
+            const newStatus = (status === 'active' || !status) ? 'suspended' : 'active';
+            await sb.from('users').update({ status: newStatus }).eq('nik', nik);
+            fetchUsers();
+        }
+
+        async function resetUserPass(nik) {
+            const newPass = prompt(`Reset Password for ${nik}:`, "hexindo123");
+            if (newPass) { await sb.from('users').update({ password: newPass }).eq('nik', nik); alert("✅ Password Reset!"); }
+        }
+
+        function searchNIK() {
+            const input = document.getElementById("searchBar").value.toUpperCase();
+            const rows = document.querySelector("#userTableBody").rows;
+            for (let i = 0; i < rows.length; i++) {
+                const txt = rows[i].innerText.toUpperCase();
+                rows[i].style.display = txt.includes(input) ? "" : "none";
+            }
+        }
+
+        // --- LISTENERS ---
+        document.getElementById('addUserForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnDeploy'); const orig = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; btn.disabled = true;
+            const newNik = document.getElementById('regNik').value.toUpperCase().trim();
+            const newName = document.getElementById('regName').value.toUpperCase().trim();
+            const { data: existing } = await sb.from('users').select('nik').eq('nik', newNik).single();
+            if(existing) { alert("⚠️ NIK Exists!"); btn.innerHTML = orig; btn.disabled = false; return; }
+            const { error } = await sb.from('users').insert([{ nik: newNik, full_name: newName, password: 'hexindo123', role: 'technician', status: 'active' }]);
+            if (!error) { alert("✅ Access Granted!"); e.target.reset(); fetchUsers(); }
+            btn.innerHTML = orig; btn.disabled = false;
+        };
+
+        document.getElementById('changePassForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const p1 = document.getElementById('newPass').value;
+            const p2 = document.getElementById('confirmPass').value;
+            if(p1 !== p2) return alert("⚠️ Mismatch!");
+            const { error } = await sb.from('users').update({ password: p1 }).eq('nik', currentNik);
+            if (!error) { alert("✅ Key Updated!"); e.target.reset(); }
+        };
+
+        function logout() { const t = localStorage.getItem('appTheme'); localStorage.clear(); if(t) localStorage.setItem('appTheme', t); window.location.href = "login.html"; }
+        function runAutoScale() { const s = document.getElementById('scaler-context'); if(!s) return; const w = window.innerWidth; const r = w < 720 ? w/720 : 1; s.style.transform = `scale(${r})`; s.style.marginBottom = w<720 ? `-${(1-r)*s.offsetHeight}px` : "0px"; }
+        
+        window.onload = initPage;
+        window.addEventListener('resize', runAutoScale);
+    </script>
+</body>
+</html>
