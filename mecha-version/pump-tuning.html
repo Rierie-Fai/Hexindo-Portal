@@ -4,19 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Pump Tune-Up | Mecha White</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
     <meta name="theme-color" content="#f1f5f9">
     
     <script>
-        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('/mecha-version/login.html'); }
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
     </script>
 
-    <script src="/js/tailwindcss.js"></script>
-    <script src="/js/supabase-js@2.js"></script>
-    <script src="/js/chart.js"></script>
-    <link href="/css/all.min.css" rel="stylesheet">
-    <link href="/css/rajdhani.css" rel="stylesheet">
-    <link href="/css/jetbrain.css" rel="stylesheet">
+    <script src="../js/tailwindcss.js"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/chart.js"></script>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <link href="../css/rajdhani.css" rel="stylesheet">
+    <link href="../css/jetbrain.css" rel="stylesheet">
 
     <style>
         :root {
@@ -136,7 +136,7 @@
         
         <header class="glass-mecha p-6 flex justify-between items-center no-print">
             <div class="flex items-center gap-5">
-                <a href="/mecha-version/index.html" class="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-slate-600 shadow-sm border border-slate-200 hover:text-blue-600 transition-all text-xl">
+                <a href="index.html" class="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-slate-600 shadow-sm border border-slate-200 hover:text-blue-600 transition-all text-xl">
                     <i class="fas fa-home"></i>
                 </a>
                 <div>
@@ -633,7 +633,7 @@
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
+            navigator.serviceWorker.register('../sw.js')
                 .then(reg => console.log('Terminal Synced:', reg.scope))
                 .catch(err => console.log('Sync Failed:', err));
         });
