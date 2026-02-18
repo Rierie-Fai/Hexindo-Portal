@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Terminal Access | Hexindo Fleet</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
     <meta name="theme-color" content="#f1f5f9">
 
-    <script src="/js/tailwindcss.js"></script>
-    <script src="/js/supabase-js@2.js"></script>
-    <link href="/css/all.min.css" rel="stylesheet">
-    <link href="/css/rajdhani.css" rel="stylesheet">
-    <link href="/css/jetbrain.css" rel="stylesheet">
+    <script src="../js/tailwindcss.js"></script>
+    <script src="../js/supabase.js"></script>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <link href="../css/rajdhani.css" rel="stylesheet">
+    <link href="../css/jetbrain.css" rel="stylesheet">
 
     <style>
         :root {
@@ -283,7 +283,7 @@
                         localStorage.setItem('userNIK', data.nik);
                         localStorage.setItem('userName', data.full_name);
                         
-                        setTimeout(() => window.location.replace('/mecha-version/index.html'), 500);
+                        setTimeout(() => window.location.replace('index.html'), 500);
                         return;
                     }
 
@@ -312,7 +312,7 @@
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
+            navigator.serviceWorker.register('../sw.js')
                 .then(reg => console.log('Terminal Synced:', reg.scope))
                 .catch(err => console.log('Sync Failed:', err));
         });
