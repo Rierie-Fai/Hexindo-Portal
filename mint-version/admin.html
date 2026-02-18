@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Admin Mint | Hexindo Fleet</title>
     <meta name="theme-color" content="#f0fdf4">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
 
     <script>
         const userNik = localStorage.getItem('userNIK');
         if (!userNik) window.location.replace('login.html');
     </script>
 
-    <script src="/js/tailwindcss.js"></script>
-    <script src="/js/supabase-js@2.js"></script>
-    <script src="/js/chart.js"></script>
-    <link href="/css/all.min.css" rel="stylesheet">
-    <link href="/css/rajdhani.css" rel="stylesheet">
-    <link href="/css/jetbrain.css" rel="stylesheet">
+    <script src="../js/tailwindcss.js"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/chart.js"></script>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <link href="../css/rajdhani.css" rel="stylesheet">
+    <link href="../css/jetbrain.css" rel="stylesheet">
 
     <style>
         :root {
@@ -558,7 +558,7 @@
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
+            navigator.serviceWorker.register('../sw.js')
                 .then(reg => console.log('Terminal Synced:', reg.scope))
                 .catch(err => console.log('Sync Failed:', err));
         });
