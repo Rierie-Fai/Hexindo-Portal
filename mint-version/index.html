@@ -444,21 +444,31 @@
         }
 
         // --- APP LOGIC ---
-        const App = {
-            sb: supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY),
-            userNik: localStorage.getItem('userNIK'),
-            activeChat: null,
+        let App = {
+    sb: null, // Kosongkan dulu saat start
+    userNik: localStorage.getItem('userNIK'),
+    activeChat: null,
 
-            async init() {
-                new BubbleEngine();
-                this.updateTime(); setInterval(() => this.updateTime(), 1000);
-                
-                this.runAutoScale(); 
-                window.addEventListener('resize', () => { this.runAutoScale(); });
-                
-                await this.loadSession();
-                this.initChatSystem();
-            },
+    init() {
+        // 1. Cek apakah Library Supabase sudah masuk?
+        if (typeof supabase === 'undefined') {
+            alert("CRITICAL ERROR: Library Supabase Gagal Dimuat. Cek koneksi atau nama file '../js/supabase.js'");
+            return;
+        }
+
+        // 2. Baru inisialisasi di sini (AMAN)
+        this.sb = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+
+        // 3. Lanjutkan proses normal
+        new BubbleEngine();
+        this.updateTime(); setInterval(() => this.updateTime(), 1000);
+        
+        this.runAutoScale(); 
+        window.addEventListener('resize', () => { this.runAutoScale(); });
+        
+        this.loadSession(); // Tambahkan await jika perlu, tapi di sini void ok
+        this.initChatSystem();
+    },
 
             async loadSession() {
                 const progress = document.getElementById('splashProgress');
