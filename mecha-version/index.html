@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Portal Mecha | Hexindo Fleet</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
     <meta name="theme-color" content="#f1f5f9">
 
     <script>
         // Cek Login
-        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('/mecha-version/login.html'); }
+        if (localStorage.getItem('isLoggedIn') !== 'true') { window.location.replace('login.html'); }
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -274,7 +274,7 @@
         </div>
 
         <div id="adminSection" class="hidden mb-8 relative z-10">
-            <a href="/mecha-version/admin.html" class="scan-target glass-mecha p-6 border-2 border-slate-200 flex items-center justify-between hover:border-amber-400 group">
+            <a href="admin.html" class="scan-target glass-mecha p-6 border-2 border-slate-200 flex items-center justify-between hover:border-amber-400 group">
                 <div class="flex items-center gap-6">
                     <div class="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg"><i class="fas fa-user-shield"></i></div>
                     <div><h2 class="text-lg font-black text-slate-800 uppercase italic tracking-wider group-hover:text-amber-600 transition-colors">ADMIN CONSOLE</h2><p class="text-xs font-bold text-slate-400 uppercase">Manage System Access</p></div>
@@ -284,19 +284,19 @@
         </div>
 
         <div class="grid grid-cols-2 gap-6 pb-12 relative z-10">
-            <a href="/mecha-version/pump-tuning.html" class="scan-target glass-mecha menu-card group">
+            <a href="pump-tuning.html" class="scan-target glass-mecha menu-card group">
                 <div class="menu-icon text-blue-600 bg-blue-50 border-blue-200 group-hover:bg-blue-500 group-hover:text-white transition-all"><i class="fas fa-tachometer-alt"></i></div>
                 <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-blue-600 transition-colors">HYDRAULIC</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Pump Tuning System</p></div>
             </a>
-            <a href="/mecha-version/dar.html" class="scan-target glass-mecha menu-card group">
+            <a href="dar.html" class="scan-target glass-mecha menu-card group">
                 <div class="menu-icon text-emerald-600 bg-emerald-50 border-emerald-200 group-hover:bg-emerald-500 group-hover:text-white transition-all"><i class="fas fa-clipboard-list"></i></div>
                 <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-emerald-600 transition-colors">ACTIVITY</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Daily Log Report</p></div>
             </a>
-            <a href="/mecha-version/ppu.html" class="scan-target glass-mecha menu-card group">
+            <a href="ppu.html" class="scan-target glass-mecha menu-card group">
                 <div class="menu-icon text-amber-600 bg-amber-50 border-amber-200 group-hover:bg-amber-500 group-hover:text-white transition-all"><i class="fas fa-tractor"></i></div>
                 <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-amber-600 transition-colors">UNDERCARRIAGE</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Inspection Tool</p></div>
             </a>
-            <a href="/mecha-version/toolbox.html" class="scan-target glass-mecha menu-card group">
+            <a href="toolbox.html" class="scan-target glass-mecha menu-card group">
                 <div class="menu-icon text-slate-600 bg-slate-100 border-slate-300 group-hover:bg-slate-700 group-hover:text-white transition-all"><i class="fas fa-tools"></i></div>
                 <div><h3 class="text-2xl font-black text-slate-800 uppercase italic leading-none group-hover:text-slate-700 transition-colors">TOOLBOX</h3><p class="text-sm font-bold text-slate-500 uppercase mt-2">Checklist Pro</p></div>
             </a>
@@ -561,7 +561,7 @@
         window.onload = () => App.init();
     </script>
     <script>
-    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(err => console.log('Sync Failed:', err)); }); }
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('../sw.js').catch(err => console.log('Sync Failed:', err)); }); }
     </script>
 </body>
 </html>
