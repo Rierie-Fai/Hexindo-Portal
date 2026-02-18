@@ -18,7 +18,7 @@ const urlsToCache = [
   './js/chart.js',
   './js/jspdf.plugin.autotable.min.js',
   './js/jspdf.umd.min.js',
-  './js/supabase-js@2.js',
+  './js/supabase.js',
   './js/tailwindcss.js',
   './js/xlsx.full.min.js',
 
