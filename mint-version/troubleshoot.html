@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Diagnostic | Hexindo Fleet</title>
+    
+    <script src="../js/tailwindcss.js"></script>
+    <script src="../js/pdf.min.js"></script>
+    <script src="../js/supabase.js"></script>
+    
+    <link href="../css/all.min.css" rel="stylesheet">
+    <link href="../css/rajdhani.css" rel="stylesheet">
+    <link href="../css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        /* --- MINT JELLY OS x HEXINDO FLEET THEME --- */
+        :root {
+            /* Jelly Glassmorphism effect */
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --glass-shadow: 0 12px 40px 0 rgba(16, 185, 129, 0.15);
+            --accent-color: #10b981; /* Emerald-500 (Mint) */
+            --accent-dark: #0f766e;  /* Teal-700 */
+            --text-primary: #134e4a; /* Teal-900 */
+            --text-secondary: #0d9488; /* Teal-600 */
+            --bg-color: #ecfdf5; /* Emerald-50 */
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: var(--bg-color);
+            background-image: 
+                linear-gradient(0deg, #d1fae5 1px, transparent 1px), 
+                linear-gradient(90deg, #d1fae5 1px, transparent 1px);
+            background-size: 40px 40px;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex; justify-content: center;
+        }
+
+        #main-container {
+            width: 100%; max-width: 720px;
+            position: relative; z-index: 10;
+        }
+
+        /* --- JELLY GLASS COMPONENTS --- */
+        .glass-mecha {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            border-radius: 28px; /* Lebih membulat untuk efek jelly */
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid #a7f3d0;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+        }
+
+        /* --- UTILITIES --- */
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .text-accent { color: var(--accent-color); }
+        .bg-accent { background-color: var(--accent-color); }
+        
+        /* Animasi Halus */
+        .animate-enter { animation: enterUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(15px); }
+        @keyframes enterUp { to { opacity: 1; transform: translateY(0); } }
+
+        /* Scrollbar Mint */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #6ee7b7; border-radius: 10px; }
+
+        #hexindo-status-badge {
+            bottom: 20px !important; left: 20px !important;
+            z-index: 9999 !important;
+        }
+    </style>
+</head>
+<body class="pb-24 px-4 pt-4">
+
+    <canvas id="mecha-canvas" class="fixed inset-0 pointer-events-none opacity-50 z-0"></canvas>
+
+    <div id="main-container">
+        
+        <header class="flex justify-between items-center mb-6 glass-mecha p-4 sticky top-4 z-40 bg-white/70">
+            <div class="flex items-center gap-4">
+                <button onclick="history.back()" class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition flex items-center justify-center shadow-sm">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button onclick="window.location.href='index.html'" class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition flex items-center justify-center shadow-sm">
+                    <i class="fas fa-home"></i>
+                </button>
+            </div>
+            
+            <div class="text-right">
+                <h1 class="text-xl font-black text-teal-900 italic uppercase tracking-tighter leading-none">
+                    SMART <span class="text-accent">DIAGNOSTIC</span>
+                </h1>
+                <p class="text-[10px] font-bold text-teal-600 uppercase tracking-widest">MINT JELLY SYSTEM</p>
+            </div>
+
+            <button id="btnAdminToggle" onclick="toggleSettingsPanel()" class="w-10 h-10 rounded-2xl bg-teal-800 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-500 transition flex items-center justify-center active:scale-95">
+                <i class="fas fa-sliders-h"></i>
+            </button>
+        </header>
+
+        <div class="glass-mecha p-6 mb-6 relative overflow-hidden animate-enter" style="animation-delay: 0.1s;">
+            <div class="absolute -right-6 -top-6 w-32 h-32 bg-emerald-400/20 rounded-full blur-3xl"></div>
+            
+            <label class="text-xs font-bold text-teal-600 uppercase tracking-widest mb-2 block ml-1">
+                <i class="fas fa-search mr-1 text-accent"></i> System Query
+            </label>
+            <div class="flex gap-2 relative z-10">
+                <input type="text" id="searchInput" 
+                    placeholder="Enter Error Code (e.g. E03)..." 
+                    class="glass-input w-full rounded-2xl px-5 py-3 text-sm font-bold placeholder-teal-400 transition shadow-sm"
+                    onkeypress="if(event.key === 'Enter') searchManual()">
+                
+                <button onclick="searchManual()" 
+                    class="bg-teal-800 text-white rounded-2xl px-6 hover:bg-emerald-500 transition shadow-lg shadow-emerald-200 active:scale-95">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="resultsArea" class="space-y-4 min-h-[40vh] pb-20">
+            <div class="text-center py-12 opacity-60 animate-enter" style="animation-delay: 0.2s;">
+                <div class="w-24 h-24 bg-emerald-100/50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500 text-4xl shadow-inner border border-emerald-200">
+                    <i class="fas fa-laptop-medical drop-shadow-md"></i>
+                </div>
+                <h3 class="text-lg font-black text-teal-800 uppercase tracking-wide">System Ready</h3>
+                <p class="text-sm text-teal-600 font-mono">Awaiting Input...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="pdfViewerModal" class="hidden fixed inset-0 z-50 bg-emerald-50/90 backdrop-blur-2xl flex flex-col h-screen w-screen">
+        <div class="flex justify-between items-center p-4 bg-white/80 border-b border-emerald-100 shadow-sm z-10">
+            <div class="flex flex-col">
+                <span id="viewerTitle" class="text-teal-900 font-black text-sm uppercase truncate max-w-[200px]">MANUAL VIEW</span>
+                <span id="pageIndicator" class="text-emerald-600 text-xs font-mono font-bold">PAGE 0</span>
+            </div>
+            <button onclick="closePdfViewer()" class="bg-red-50 text-red-500 border border-red-100 px-5 py-2 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition shadow-sm">
+                CLOSE
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-auto flex justify-center bg-teal-900/5 relative p-4" id="canvasContainer">
+            <canvas id="the-canvas" class="shadow-2xl my-auto max-w-full bg-white rounded-xl"></canvas>
+            
+            <div id="canvasLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10 hidden">
+                <div class="w-12 h-12 border-4 border-emerald-100 border-t-emerald-500 rounded-full animate-spin mb-3 shadow-lg"></div>
+                <span class="text-teal-600 text-xs font-bold font-mono uppercase tracking-widest">Rendering...</span>
+            </div>
+        </div>
+
+        <div class="p-5 bg-white/80 backdrop-blur-md border-t border-emerald-100 flex justify-center gap-4 safe-area-pb shadow-[0_-5px_20px_rgba(16,185,129,0.05)]">
+            <button id="btnPrev" class="w-12 h-12 rounded-2xl bg-emerald-50 text-teal-700 hover:bg-teal-800 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="btnZoom" onclick="toggleZoom()" class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-500 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="btnNext" class="w-12 h-12 rounded-2xl bg-emerald-50 text-teal-700 hover:bg-teal-800 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="settingsPanel" class="hidden fixed inset-0 z-50 bg-teal-950/40 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white/95 w-full max-w-md p-6 rounded-[32px] shadow-2xl border border-emerald-100 relative">
+            
+            <button onclick="toggleSettingsPanel()" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-emerald-50 text-teal-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <h2 class="text-lg font-black text-teal-900 uppercase flex items-center gap-2 mb-6">
+                <i class="fas fa-cog text-emerald-500"></i> System Settings
+            </h2>
+
+            <div class="space-y-5">
+                <div class="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+                    <label class="text-[10px] text-teal-600 font-bold uppercase tracking-wider mb-1 block">Active NIK Identity</label>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-emerald-200 text-teal-800 rounded-full flex items-center justify-center text-xs">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <input type="text" value="Auto-Synced with Login" disabled class="bg-transparent border-none text-sm font-bold text-teal-800 font-mono w-full focus:outline-none cursor-not-allowed">
+                    </div>
+                </div>
+
+                <hr class="border-emerald-100">
+
+                <div>
+                    <label class="text-[10px] text-teal-600 font-bold uppercase tracking-wider mb-1 block">Document Title</label>
+                    <input type="text" id="manualTitle" placeholder="Ex: EX2000-7 Shop Manual" class="w-full bg-emerald-50/50 border border-emerald-200 rounded-2xl px-4 py-3 text-sm font-bold text-teal-800 focus:border-emerald-500 focus:outline-none transition">
+                </div>
+                
+                <div>
+                    <label class="text-[10px] text-teal-600 font-bold uppercase tracking-wider mb-1 block">PDF File</label>
+                    <input type="file" id="pdfUploader" accept="application/pdf" class="block w-full text-sm text-teal-600
+                        file:mr-4 file:py-2.5 file:px-4
+                        file:rounded-xl file:border-0
+                        file:text-xs file:font-bold
+                        file:bg-emerald-100 file:text-teal-800
+                        hover:file:bg-emerald-200 cursor-pointer border border-dashed border-emerald-300 rounded-2xl p-2 bg-white">
+                </div>
+
+                <div class="bg-teal-900 rounded-2xl p-4 h-32 overflow-y-auto font-mono text-xs border border-teal-800 shadow-inner">
+                    <div id="uploadStatus" class="text-emerald-400 flex flex-col gap-1">
+                        <span><i class="fas fa-terminal mr-2"></i>System Ready...</span>
+                    </div>
+                </div>
+
+                <button onclick="processPDF()" class="w-full bg-teal-800 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-500 transition transform active:scale-[0.98] flex justify-center items-center gap-2 uppercase tracking-wide text-sm">
+                    <i class="fas fa-rocket"></i> Start Indexing
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/offline-manager.js"></script>
+
+    <script>
+        // 1. INISIALISASI KONEKSI 
+        const sbUrl = 'https://corpgiuxyhfxdnqwwmlv.supabase.co';
+        const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E';
+        const db = supabase.createClient(sbUrl, sbKey);
+
+        // Konfigurasi Worker PDF
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let pdfDoc = null, pageNum = 1, pageRendering = false, pageNumPending = null, scale = 1.0;
+
+        // --- PARTICLE ENGINE (Mint Jelly Update) ---
+        class ParticleEngine {
+            constructor() {
+                this.canvas = document.getElementById('mecha-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = []; this.qty = 45; 
+                this.resize(); window.addEventListener('resize', () => this.resize());
+                this.init(); this.animate();
+            }
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            init() { this.particles = Array.from({ length: this.qty }, () => this.createParticle()); }
+            createParticle() {
+                return {
+                    x: Math.random() * this.canvas.width,
+                    y: Math.random() * this.canvas.height,
+                    size: Math.random() * 2 + 1,
+                    speedY: Math.random() * 0.4 + 0.1,
+                    opacity: Math.random() * 0.4 + 0.1
+                };
+            }
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.fillStyle = "#34d399"; // Mint/Emerald color
+                this.particles.forEach(p => {
+                    p.y -= p.speedY;
+                    if(p.y < 0) p.y = this.canvas.height;
+                    this.ctx.globalAlpha = p.opacity;
+                    this.ctx.beginPath(); 
+                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); // Ubah jadi bulat untuk kesan jelly
+                    this.ctx.fill();
+                });
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        new ParticleEngine();
+
+        // --- SEARCH LOGIC (ES8 - Smart & Flexible) ---
+        const searchManual = async () => {
+            const query = document.getElementById('searchInput').value.trim();
+            const resultsDiv = document.getElementById('resultsArea');
+            
+            if (!query) return;
+
+            resultsDiv.innerHTML = `
+                <div class="text-center py-10 animate-pulse">
+                    <div class="w-12 h-12 border-4 border-emerald-100 border-t-emerald-500 rounded-full animate-spin mx-auto mb-3 shadow-md"></div>
+                    <span class="text-emerald-600 font-bold text-xs uppercase tracking-widest">Searching Database...</span>
+                </div>`;
+
+            // 1. Pecah query menjadi array kata (misal "Spesifikasi Swing Motor" -> ["Spesifikasi", "Swing", "Motor"])
+            const keywords = query.split(/\s+/).filter(word => word.length > 1);
+
+            // 2. Buat dasar query database
+            let dbQuery = db
+                .from('manual_pages')
+                .select(`page_number, content, manuals (title, file_url)`);
+
+            // 3. Tambahkan filter .ilike() untuk setiap kata.
+            // Logika: Cari halaman yang kontennya mengandung kata A, DAN mengandung kata B, dst.
+            // Posisi dan urutan teks di dalam PDF tidak lagi menjadi masalah.
+            keywords.forEach(word => {
+                dbQuery = dbQuery.ilike('content', `%${word}%`);
+            });
+
+            // Eksekusi query
+            const { data, error } = await dbQuery.limit(15);
+
+            resultsDiv.innerHTML = '';
+
+            if (error || !data || data.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="text-center py-10 opacity-70">
+                        <i class="fas fa-search-minus text-4xl text-emerald-200 mb-3 drop-shadow-sm"></i>
+                        <p class="text-teal-600 text-sm font-bold">NO DATA FOUND</p>
+                        <p class="text-xs text-teal-400 font-mono mt-1">Coba gunakan kata kunci yang lebih sedikit</p>
+                    </div>`;
+                return;
+            }
+
+            data.forEach((item, index) => {
+                const safeTitle = item.manuals.title.replace(/'/g, "\\'");
+                const safeUrl = item.manuals.file_url;
+                
+                // --- SMART PREVIEW GENERATOR ---
+                let contentStr = item.content;
+                let previewText = contentStr;
+                
+                // Cari posisi kata kunci pertama untuk dijadikan awalan preview agar relevan
+                let firstMatchIdx = -1;
+                for (let w of keywords) {
+                    let idx = contentStr.toLowerCase().indexOf(w.toLowerCase());
+                    if (idx !== -1 && (firstMatchIdx === -1 || idx < firstMatchIdx)) {
+                        firstMatchIdx = idx;
+                    }
+                }
+
+                // Potong teks di sekitar kata yang ditemukan (agar user bisa baca konteks kalimatnya)
+                if (firstMatchIdx > 40) {
+                    previewText = "..." + contentStr.substring(firstMatchIdx - 40, firstMatchIdx + 120) + "...";
+                } else if (contentStr.length > 150) {
+                    previewText = contentStr.substring(0, 150) + "...";
+                }
+
+                // Highlight setiap kata kunci di preview text dengan warna mint
+                keywords.forEach(word => {
+                    const regex = new RegExp(`(${word})`, 'gi');
+                    previewText = previewText.replace(regex, '<span class="text-emerald-700 font-black bg-emerald-200/60 px-1 rounded-md shadow-sm">$1</span>');
+                });
+
+                // HTML Card
+                const cardHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm p-5 rounded-3xl shadow-sm border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100/50 transition-all group animate-enter" style="animation-delay: ${index * 0.1}s">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-black text-teal-900 text-sm uppercase tracking-wide group-hover:text-emerald-600 transition">${item.manuals.title}</h3>
+                            <span class="bg-emerald-50 text-teal-700 text-[10px] px-2 py-1 rounded-lg font-bold border border-emerald-200">
+                                PAGE ${item.page_number}
+                            </span>
+                        </div>
+                        <p class="text-teal-700 text-xs leading-relaxed font-mono mb-4 pl-3 border-l-2 border-emerald-200 opacity-90 break-words">
+                            "${previewText}"
+                        </p>
+                        <button onclick="openManualPage('${safeUrl}', ${item.page_number}, '${safeTitle}')"
+                            class="w-full bg-emerald-50/50 hover:bg-teal-800 hover:text-white border border-emerald-100 text-teal-700 text-xs py-3 rounded-2xl flex items-center justify-center gap-2 transition-colors font-bold uppercase tracking-wider">
+                            <i class="fas fa-external-link-alt"></i> View Original Page
+                        </button>
+                    </div>
+                `;
+                resultsDiv.innerHTML += cardHTML;
+            });
+        };
+
+
+        // --- PDF VIEWER LOGIC (ES8) ---
+        const openManualPage = async (url, pageNumber, title) => {
+            const modal = document.getElementById('pdfViewerModal');
+            const loader = document.getElementById('canvasLoader');
+            const loaderText = loader.querySelector('span');
+
+            modal.classList.remove('hidden'); loader.classList.remove('hidden');
+            document.getElementById('viewerTitle').innerText = title;
+            scale = window.innerWidth < 640 ? 0.6 : 1.2; 
+
+            try {
+                loaderText.innerText = "LOADING CACHE...";
+                const pdfBlob = await window.HexindoFleet.getOrDownloadManual(url, (status) => { loaderText.innerText = status.toUpperCase(); });
+                const arrayBuffer = await pdfBlob.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                pdfDoc = await loadingTask.promise;
+                pageNum = parseInt(pageNumber);
+                renderPage(pageNum);
+            } catch (error) { alert("Error: " + error.message); closePdfViewer(); }
+        };
+
+        const renderPage = async (num) => {
+            pageRendering = true;
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: scale });
+            const canvas = document.getElementById('the-canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height; canvas.width = viewport.width;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            pageRendering = false;
+            document.getElementById('canvasLoader').classList.add('hidden');
+            document.getElementById('pageIndicator').innerText = `PAGE ${num} / ${pdfDoc.numPages}`;
+        };
+
+        // --- UPLOAD LOGIC (ES8) ---
+        const processPDF = async () => {
+            const fileInput = document.getElementById('pdfUploader');
+            const titleInput = document.getElementById('manualTitle').value;
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            if (!fileInput.files[0] || !titleInput) { statusDiv.innerHTML = `<span class="text-red-400">Missing Data!</span>`; return; }
+            
+            statusDiv.innerHTML = `<span class="text-emerald-400 animate-pulse">Uploading PDF...</span>`;
+            
+            try {
+                const file = fileInput.files[0];
+                const fileName = `manuals/${Date.now()}_${file.name.replace(/\s+/g, '-')}`;
+                
+                const { error: storageError } = await db.storage.from('manuals').upload(fileName, file);
+                if (storageError) throw storageError;
+                
+                const { data: { publicUrl } } = db.storage.from('manuals').getPublicUrl(fileName);
+                
+                const { data: manualData, error: manualError } = await db.from('manuals').insert([{ title: titleInput, file_url: publicUrl }]).select();
+                if (manualError) throw manualError;
+                
+                statusDiv.innerHTML += `<br><span class="text-teal-300">Indexing Text...</span>`;
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+                    
+                    if (pageText.length > 20) {
+                        await db.from('manual_pages').insert({ manual_id: manualData[0].id, page_number: i, content: pageText });
+                    }
+                    if(i % 5 === 0) statusDiv.lastElementChild.innerText = `Indexing Page ${i}/${pdf.numPages}...`;
+                }
+                
+                statusDiv.innerHTML += `<br><span class="text-emerald-300 font-black">DONE!</span>`;
+                setTimeout(() => { alert("Success!"); toggleSettingsPanel(); }, 500);
+            } catch (e) { statusDiv.innerHTML += `<br><span class="text-red-400">${e.message}</span>`; }
+        };
+
+        // Helpers
+        const toggleSettingsPanel = () => document.getElementById('settingsPanel').classList.toggle('hidden');
+        const closePdfViewer = () => { document.getElementById('pdfViewerModal').classList.add('hidden'); pdfDoc = null; };
+        document.getElementById('btnPrev').onclick = () => { if(pageNum > 1) { pageNum--; renderPage(pageNum); }};
+        document.getElementById('btnNext').onclick = () => { if(pageNum < pdfDoc.numPages) { pageNum++; renderPage(pageNum); }};
+        const toggleZoom = () => { scale = scale === 1.2 ? 0.6 : 1.2; renderPage(pageNum); };
+    </script>
+</body>
+</html>
