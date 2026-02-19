@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hexindo-fleet-v1.2.3';
+const CACHE_NAME = 'hexindo-fleet-v1.5';
 
 // Daftar file sesuai dengan screenshot folder kamu
 const urlsToCache = [
