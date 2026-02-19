@@ -9,19 +9,21 @@
  */
 
 class HexindoOfflineManager {
-    constructor() {
+        constructor() {
         this.dbName = 'HexindoFleetDB';
-        this.dbVersion = 2; // Versi 2 (Ada store PDF)
-        
-        // Nama Tabel Penyimpanan Lokal
-        this.storeUploads = 'pending_uploads'; // Untuk Laporan (DAR, PPU, dll)
-        this.storeManuals = 'cached_manuals';  // Untuk File PDF
+        this.dbVersion = 2; 
+        this.storeUploads = 'pending_uploads';
+        this.storeManuals = 'cached_manuals';
+
+        // --- TAMBAHAN BARU: Buat koneksi database sendiri ---
+        if (typeof CONFIG !== 'undefined') {
+            this.sbClient = supabase.createClient(CONFIG.SB_URL, CONFIG.SB_KEY);
+        }
 
         this.initDB();
         this.initUI();
         this.registerSW();
 
-        // Event Listener Network
         window.addEventListener('online', () => this.handleConnectionChange(true));
         window.addEventListener('offline', () => this.handleConnectionChange(false));
     }
@@ -69,13 +71,13 @@ class HexindoOfflineManager {
     // ============================================================
 
     // Fungsi Utama: Dipanggil dari halaman HTML saat tombol simpan diklik
-    async submitData(tableName, payload) {
+        async submitData(tableName, payload) {
         if (navigator.onLine) {
             try {
                 this.showToast('Mengirim ke Server...', 'info');
                 
-                // Kirim langsung ke Supabase
-                const { error } = await supabase
+                // PERBAIKAN DI SINI (Gunakan this.sbClient)
+                const { error } = await this.sbClient
                     .from(tableName)
                     .insert([payload]);
 
@@ -90,11 +92,11 @@ class HexindoOfflineManager {
                 return false;
             }
         } else {
-            // Jika Offline
             await this.saveToOutbox(tableName, payload);
             return false;
         }
     }
+
 
     // Simpan ke Outbox (IndexedDB)
     async saveToOutbox(tableName, payload) {
@@ -122,26 +124,34 @@ class HexindoOfflineManager {
             if (items.length === 0) return; // Tidak ada antrian
 
             this.showToast(`Sinkronisasi ${items.length} data tertunda...`, 'info');
+            let successCount = 0;
 
             for (const item of items) {
                 try {
-                    // Coba upload lagi ke Supabase
-                    const { error } = await supabase
+                    // PERBAIKAN DI SINI (Gunakan this.sbClient)
+                    const { error } = await this.sbClient
                         .from(item.table)
                         .insert([item.payload]);
 
                     if (!error) {
-                        // Jika sukses, hapus dari IndexedDB
+                        // Jika sukses di Supabase, hapus dari brankas HP
                         const delTx = db.transaction(this.storeUploads, 'readwrite');
                         delTx.objectStore(this.storeUploads).delete(item.id);
+                        successCount++;
+                    } else {
+                        console.error('Error Supabase:', error);
                     }
                 } catch (err) {
                     console.error('Gagal sync item:', item.id, err);
                 }
             }
-            this.showToast('Semua data berhasil disinkronisasi!', 'success');
+            
+            if (successCount > 0) {
+                this.showToast(`${successCount} data berhasil disinkronisasi ke Cloud!`, 'success');
+            }
         };
     }
+
 
     // ============================================================
     // 3. PDF CACHE LOGIC (Smart Troubleshoot)
