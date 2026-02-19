@@ -552,16 +552,26 @@
         }
 
         // --- CLOUD OPS ---
-        async function saveToCloud() {
+                async function saveToCloud() {
             const btn = document.querySelector('button[onclick="saveToCloud()"]');
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i>`;
+            btn.disabled = true;
             
             const recId = document.getElementById('current_record_id').value;
+            const unitModel = document.getElementById('unit_model').value.toUpperCase();
+
+            if (!unitModel) {
+                alert("Harap isi Model Unit!");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                return;
+            }
+
             const record = {
                 test_date: document.getElementById('test_date').value,
                 nik: document.getElementById('nik').value,
-                unit_model: document.getElementById('unit_model').value.toUpperCase(),
+                unit_model: unitModel,
                 serial_number: document.getElementById('serial_num').value.toUpperCase(),
                 hour_meter: document.getElementById('hour_meter').value,
                 component_history: Array.from(document.querySelectorAll('.data-comp')).map(i => i.value),
@@ -571,16 +581,47 @@
                 all_pumps_data: masterStore
             };
             
-            const { error } = recId ? await sb.from('pump_performance_reports').update(record).eq('id', recId) : await sb.from('pump_performance_reports').insert([record]);
-            
-            btn.innerHTML = originalText;
-            if (error) alert("Sync Failed: " + error.message); 
-            else { 
-                alert("✅ Data Synced to Cloud!"); 
+            try {
+                if (recId) {
+                    // MODE EDIT (Harus Online)
+                    if (!navigator.onLine) {
+                        alert("⚠️ Anda sedang offline. Mengedit riwayat lama membutuhkan koneksi internet.");
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                        return;
+                    }
+                    const { error } = await sb.from('pump_performance_reports').update(record).eq('id', recId);
+                    if (error) throw error;
+                    alert("✅ Record Updated Successfully!");
+                } else {
+                    // MODE ENTRY BARU (Integrasi Offline Manager)
+                    const isSuccess = await window.HexindoFleet.submitData('pump_performance_reports', record);
+                    
+                    // Catat aktivitas
+                    window.HexindoFleet.submitData('activity_logs', {
+                        nik: document.getElementById('nik').value,
+                        activity: "Pump Tuning Report",
+                        details: `Unit: ${unitModel}`
+                    });
+
+                    if (isSuccess) {
+                        alert("✅ DATA SYNCED TO SERVER!");
+                    } else {
+                        alert("⚠️ OFFLINE MODE: Data disimpan di antrean HP. Akan dikirim otomatis saat sinyal kembali.");
+                    }
+                }
+                
                 prepareNewEntry(); 
-                App.fetchHistory(); 
+                if(!document.getElementById('history-panel').classList.contains('minimized')) App.fetchHistory();
+                
+            } catch (err) {
+                alert("System Error: " + err.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
+
 
         async function loadRecord(id) {
             const { data } = await sb.from('pump_performance_reports').select('*').eq('id', id).single();
@@ -630,6 +671,7 @@
 
         window.onload = () => App.init();
     </script>
+    <script src="../js/offline-manager.js"></script>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

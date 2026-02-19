@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Diagnostic | Hexindo Fleet</title>
+    
+    <script src="../js/tailwindcss.js"></script>
+    <script src="../js/pdf.min.js"></script>
+    <script src="../js/supabase.js"></script>
+    
+    <link href="../css/all.min.css" rel="stylesheet">
+    <link href="../css/rajdhani.css" rel="stylesheet">
+    <link href="../css/jetbrain.css" rel="stylesheet">
+
+    <style>
+        /* --- STYLE DARI INDEX (Light Mecha Theme) --- */
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 1);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+            --accent-color: #0891b2; /* Cyan-600 untuk Diagnostic */
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+        }
+
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: 
+                linear-gradient(0deg, #cbd5e1 1px, transparent 1px), 
+                linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 40px 40px;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex; justify-content: center;
+        }
+
+        #main-container {
+            width: 100%; max-width: 720px;
+            position: relative; z-index: 10;
+        }
+
+        /* --- GLASS COMPONENTS --- */
+        .glass-mecha {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px) saturate(120%);
+            -webkit-backdrop-filter: blur(16px);
+            border: 2px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            border-radius: 24px;
+        }
+
+        .glass-input {
+            background: rgba(241, 245, 249, 0.8);
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-input:focus {
+            background: #fff;
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+        }
+
+        /* --- UTILITIES --- */
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .text-accent { color: var(--accent-color); }
+        .bg-accent { background-color: var(--accent-color); }
+        
+        /* Animasi Halus */
+        .animate-enter { animation: enterUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes enterUp { to { opacity: 1; transform: translateY(0); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* Override CSS Status Bar (Biar di Kiri Bawah) */
+        #hexindo-status-badge {
+            top: auto !important; right: auto !important;
+            bottom: 20px !important; left: 20px !important;
+            z-index: 9999 !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="pb-24 px-4 pt-4">
+
+    <canvas id="mecha-canvas" class="fixed inset-0 pointer-events-none opacity-40 z-0"></canvas>
+
+    <div id="main-container">
+        
+        <header class="flex justify-between items-center mb-6 glass-mecha p-4 sticky top-4 z-40 bg-white/90">
+            <div class="flex items-center gap-4">
+                <button onclick="history.back()" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-cyan-600 transition flex items-center justify-center">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button onclick="window.location.href='index.html'" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-cyan-600 transition flex items-center justify-center">
+                    <i class="fas fa-home"></i>
+                </button>
+            </div>
+            
+            <div class="text-right">
+                <h1 class="text-xl font-black text-slate-800 italic uppercase tracking-tighter leading-none">
+                    SMART <span class="text-accent">DIAGNOSTIC</span>
+                </h1>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TROUBLESHOOT SYSTEM</p>
+            </div>
+
+            <button id="btnAdminToggle" onclick="toggleAdminPanel()" class="w-10 h-10 rounded-xl bg-slate-800 text-white shadow-lg shadow-slate-300 hover:bg-cyan-600 transition flex items-center justify-center active:scale-95">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </button>
+        </header>
+
+        <div class="glass-mecha p-6 mb-6 relative overflow-hidden animate-enter" style="animation-delay: 0.1s;">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl"></div>
+            
+            <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block ml-1">
+                <i class="fas fa-search mr-1 text-accent"></i> Search Database
+            </label>
+            <div class="flex gap-2">
+                <input type="text" id="searchInput" 
+                    placeholder="Enter Error Code (e.g. E03)..." 
+                    class="glass-input w-full rounded-xl px-4 py-3 text-sm font-bold placeholder-slate-400 transition shadow-sm"
+                    onkeypress="if(event.key === 'Enter') searchManual()">
+                
+                <button onclick="searchManual()" 
+                    class="bg-slate-800 text-white rounded-xl px-5 hover:bg-cyan-600 transition shadow-lg active:scale-95">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="resultsArea" class="space-y-4 min-h-[40vh] pb-20">
+            <div class="text-center py-12 opacity-50 animate-enter" style="animation-delay: 0.2s;">
+                <div class="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 text-3xl">
+                    <i class="fas fa-laptop-medical"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-600 uppercase">System Ready</h3>
+                <p class="text-sm text-slate-400 font-mono">Awaiting Input...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="pdfViewerModal" class="hidden fixed inset-0 z-50 bg-slate-100/90 backdrop-blur-xl flex flex-col h-screen w-screen">
+        <div class="flex justify-between items-center p-3 bg-white border-b border-slate-200 shadow-sm z-10">
+            <div class="flex flex-col">
+                <span id="viewerTitle" class="text-slate-800 font-black text-sm uppercase truncate max-w-[200px]">MANUAL VIEW</span>
+                <span id="pageIndicator" class="text-cyan-600 text-xs font-mono font-bold">PAGE 0</span>
+            </div>
+            <button onclick="closePdfViewer()" class="bg-red-50 text-red-500 border border-red-100 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition">
+                CLOSE
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-auto flex justify-center bg-slate-200 relative p-4" id="canvasContainer">
+            <canvas id="the-canvas" class="shadow-2xl my-auto max-w-full bg-white"></canvas>
+            
+            <div id="canvasLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 hidden">
+                <div class="w-12 h-12 border-4 border-slate-200 border-t-cyan-500 rounded-full animate-spin mb-3"></div>
+                <span class="text-slate-500 text-xs font-bold font-mono uppercase tracking-widest">Rendering...</span>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white border-t border-slate-200 flex justify-center gap-4 safe-area-pb shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+            <button id="btnPrev" class="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-800 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="btnZoom" onclick="toggleZoom()" class="w-12 h-12 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 hover:bg-cyan-500 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="btnNext" class="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-800 hover:text-white transition flex items-center justify-center shadow-sm">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="adminPanel" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl border-4 border-slate-100 relative">
+            
+            <button onclick="toggleAdminPanel()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <h2 class="text-lg font-black text-slate-800 uppercase flex items-center gap-2 mb-6">
+                <i class="fas fa-cloud-upload-alt text-cyan-500"></i> Upload Manual
+            </h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Document Title</label>
+                    <input type="text" id="manualTitle" placeholder="Ex: EX2000-7 Shop Manual" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-cyan-500 focus:outline-none transition">
+                </div>
+                
+                <div>
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">PDF File</label>
+                    <input type="file" id="pdfUploader" accept="application/pdf" class="block w-full text-sm text-slate-500
+                        file:mr-4 file:py-2.5 file:px-4
+                        file:rounded-xl file:border-0
+                        file:text-xs file:font-bold
+                        file:bg-cyan-50 file:text-cyan-700
+                        hover:file:bg-cyan-100 cursor-pointer border border-dashed border-slate-300 rounded-xl p-2">
+                </div>
+
+                <div class="bg-slate-900 rounded-xl p-4 h-32 overflow-y-auto font-mono text-xs border border-slate-800">
+                    <div id="uploadStatus" class="text-slate-400 flex flex-col gap-1">
+                        <span><i class="fas fa-terminal mr-2"></i>System Ready...</span>
+                    </div>
+                </div>
+
+                <button onclick="processPDF()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-cyan-600 transition transform active:scale-[0.98] flex justify-center items-center gap-2 uppercase tracking-wide text-sm">
+                    <i class="fas fa-rocket"></i> Start Indexing
+                </button>
+            </div>
+        </div>
+    </div>
+
+        <script src="../js/offline-manager.js"></script>
+
+    <script>
+        // 1. INISIALISASI KONEKSI (Gunakan nama 'db' agar tidak bentrok dengan library 'supabase')
+        const sbUrl = 'https://corpgiuxyhfxdnqwwmlv.supabase.co';
+        const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcnBnaXV4eWhmeGRucXd3bWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMDMwNzcsImV4cCI6MjA4NTg3OTA3N30.PMp5yZOISYrBG0UUcIGaXUPnmEAaWVKgQ3Y1W8Nea_E';
+        const db = supabase.createClient(sbUrl, sbKey);
+
+        // Konfigurasi Worker PDF
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        let pdfDoc = null, pageNum = 1, pageRendering = false, pageNumPending = null, scale = 1.0;
+
+        // --- PARTICLE BACKGROUND ---
+        class ParticleEngine {
+            constructor() {
+                this.canvas = document.getElementById('mecha-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = []; this.qty = 50; 
+                this.resize(); window.addEventListener('resize', () => this.resize());
+                this.init(); this.animate();
+            }
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; }
+            init() { this.particles = Array.from({ length: this.qty }, () => this.createParticle()); }
+            createParticle() {
+                return {
+                    x: Math.random() * this.canvas.width,
+                    y: Math.random() * this.canvas.height,
+                    size: Math.random() * 2 + 1,
+                    speedY: Math.random() * 0.5 + 0.1,
+                    opacity: Math.random() * 0.3 + 0.1
+                };
+            }
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.fillStyle = "#94a3b8"; 
+                this.particles.forEach(p => {
+                    p.y -= p.speedY;
+                    if(p.y < 0) p.y = this.canvas.height;
+                    this.ctx.globalAlpha = p.opacity;
+                    this.ctx.beginPath(); this.ctx.rect(p.x, p.y, p.size, p.size * 2); this.ctx.fill();
+                });
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        new ParticleEngine();
+
+        // --- SEARCH LOGIC ---
+        async function searchManual() {
+            const query = document.getElementById('searchInput').value;
+            const resultsDiv = document.getElementById('resultsArea');
+            
+            if (!query) return;
+
+            resultsDiv.innerHTML = `
+                <div class="text-center py-10 animate-pulse">
+                    <div class="w-12 h-12 border-4 border-slate-200 border-t-cyan-500 rounded-full animate-spin mx-auto mb-3"></div>
+                    <span class="text-cyan-600 font-bold text-xs uppercase tracking-widest">Searching Database...</span>
+                </div>`;
+
+            // MENGGUNAKAN 'db' (bukan 'supabase')
+            const { data, error } = await db
+                .from('manual_pages')
+                .select(`page_number, content, manuals (title, file_url)`)
+                .textSearch('search_vector', query, { type: 'websearch', config: 'english' })
+                .limit(10);
+
+            resultsDiv.innerHTML = '';
+
+            if (error || !data || data.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="text-center py-10 opacity-60">
+                        <i class="fas fa-search-minus text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-400 text-sm font-bold">NO DATA FOUND</p>
+                    </div>`;
+                return;
+            }
+
+            data.forEach((item, index) => {
+                const previewText = item.content.length > 150 ? item.content.substring(0, 150) + "..." : item.content;
+                const safeTitle = item.manuals.title.replace(/'/g, "\\'");
+                const safeUrl = item.manuals.file_url;
+
+                const cardHTML = `
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:border-cyan-400 hover:shadow-md transition group animate-enter" style="animation-delay: ${index * 0.1}s">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-black text-slate-700 text-sm uppercase tracking-wide group-hover:text-cyan-600 transition">${item.manuals.title}</h3>
+                            <span class="bg-cyan-50 text-cyan-700 text-[10px] px-2 py-1 rounded font-bold border border-cyan-100">
+                                PAGE ${item.page_number}
+                            </span>
+                        </div>
+                        <p class="text-slate-500 text-xs leading-relaxed font-mono mb-4 pl-3 border-l-2 border-slate-200">
+                            "${previewText}"
+                        </p>
+                        <button onclick="openManualPage('${safeUrl}', ${item.page_number}, '${safeTitle}')"
+                            class="w-full bg-slate-50 hover:bg-slate-800 hover:text-white border border-slate-200 text-slate-600 text-xs py-3 rounded-xl flex items-center justify-center gap-2 transition font-bold uppercase tracking-wider">
+                            <i class="fas fa-external-link-alt"></i> View Original Page
+                        </button>
+                    </div>
+                `;
+                resultsDiv.innerHTML += cardHTML;
+            });
+        }
+
+        // --- PDF VIEWER LOGIC ---
+        async function openManualPage(url, pageNumber, title) {
+            const modal = document.getElementById('pdfViewerModal');
+            const loader = document.getElementById('canvasLoader');
+            const loaderText = loader.querySelector('span');
+
+            modal.classList.remove('hidden'); loader.classList.remove('hidden');
+            document.getElementById('viewerTitle').innerText = title;
+            scale = window.innerWidth < 640 ? 0.6 : 1.2; 
+
+            try {
+                loaderText.innerText = "LOADING CACHE...";
+                const pdfBlob = await window.HexindoFleet.getOrDownloadManual(url, (status) => { loaderText.innerText = status.toUpperCase(); });
+                const arrayBuffer = await pdfBlob.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                pdfDoc = await loadingTask.promise;
+                pageNum = parseInt(pageNumber);
+                renderPage(pageNum);
+            } catch (error) { alert("Error: " + error.message); closePdfViewer(); }
+        }
+
+        async function renderPage(num) {
+            pageRendering = true;
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: scale });
+            const canvas = document.getElementById('the-canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height; canvas.width = viewport.width;
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            pageRendering = false;
+            document.getElementById('canvasLoader').classList.add('hidden');
+            document.getElementById('pageIndicator').innerText = `PAGE ${num} / ${pdfDoc.numPages}`;
+        }
+
+        // --- UPLOAD LOGIC ---
+        async function processPDF() {
+            const fileInput = document.getElementById('pdfUploader');
+            const titleInput = document.getElementById('manualTitle').value;
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            if (!fileInput.files[0] || !titleInput) { statusDiv.innerHTML = `<span class="text-red-400">Missing Data!</span>`; return; }
+            
+            statusDiv.innerHTML = `<span class="text-cyan-400 animate-pulse">Uploading PDF...</span>`;
+            
+            try {
+                const file = fileInput.files[0];
+                const fileName = `manuals/${Date.now()}_${file.name.replace(/\s+/g, '-')}`;
+                
+                // MENGGUNAKAN 'db' (bukan 'supabase')
+                const { error: storageError } = await db.storage.from('manuals').upload(fileName, file);
+                if (storageError) throw storageError;
+                
+                const { data: { publicUrl } } = db.storage.from('manuals').getPublicUrl(fileName);
+                
+                const { data: manualData, error: manualError } = await db.from('manuals').insert([{ title: titleInput, file_url: publicUrl }]).select();
+                if (manualError) throw manualError;
+                
+                statusDiv.innerHTML += `<br><span class="text-purple-400">Indexing Text...</span>`;
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+                    
+                    if (pageText.length > 20) {
+                        await db.from('manual_pages').insert({ manual_id: manualData[0].id, page_number: i, content: pageText });
+                    }
+                    if(i % 5 === 0) statusDiv.lastElementChild.innerText = `Indexing Page ${i}/${pdf.numPages}...`;
+                }
+                
+                statusDiv.innerHTML += `<br><span class="text-emerald-400">DONE!</span>`;
+                setTimeout(() => { alert("Success!"); toggleAdminPanel(); }, 500);
+            } catch (e) { statusDiv.innerHTML += `<br><span class="text-red-500">${e.message}</span>`; }
+        }
+
+        // Helpers
+        function toggleAdminPanel() { document.getElementById('adminPanel').classList.toggle('hidden'); }
+        function closePdfViewer() { document.getElementById('pdfViewerModal').classList.add('hidden'); pdfDoc = null; }
+        document.getElementById('btnPrev').onclick = () => { if(pageNum > 1) { pageNum--; renderPage(pageNum); }};
+        document.getElementById('btnNext').onclick = () => { if(pageNum < pdfDoc.numPages) { pageNum++; renderPage(pageNum); }};
+        function toggleZoom() { scale = scale === 1.2 ? 0.6 : 1.2; renderPage(pageNum); }
+    </script>
+</body>
+</html>

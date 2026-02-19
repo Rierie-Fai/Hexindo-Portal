@@ -423,21 +423,70 @@
             });
         };
 
-        window.prosesSimpan = async () => {
+                window.prosesSimpan = async () => {
             const btn = document.querySelector('button[onclick="prosesSimpan()"]');
             const originalText = btn.innerHTML;
-            btn.innerHTML = `<span><i class="fas fa-spinner fa-spin mr-2"></i>SYNCING...</span>`;
+            btn.innerHTML = `<span><i class="fas fa-spinner fa-spin mr-2"></i>PROCESSING...</span>`;
+            btn.disabled = true;
 
             const vals = listAlat.map((_, i) => document.querySelector(`input[name="t-${i+1}"]:checked`)?.value || null);
-            if(vals.includes(null)) { alert("⚠️ Check all items first!"); btn.innerHTML = originalText; return; }
+            if(vals.includes(null)) { 
+                alert("⚠️ Check all items first!"); 
+                btn.innerHTML = originalText; 
+                btn.disabled = false;
+                return; 
+            }
 
-            const payload = { nik: userNik, pic_name: document.getElementById('pic').value, check_date: document.getElementById('tgl').value, branch: "ADARO PROJECT", items_data: vals };
-            const id = document.getElementById('editingId').value;
-            const res = id ? await sbClient.from('toolbox_reports').update(payload).eq('id', id) : await sbClient.from('toolbox_reports').insert([payload]);
+            const payload = { 
+                nik: userNik, 
+                pic_name: document.getElementById('pic').value, 
+                check_date: document.getElementById('tgl').value, 
+                branch: "ADARO PROJECT", 
+                items_data: vals 
+            };
             
-            if(!res.error) { alert("✅ Data Synced Successfully!"); closeAllDrawers(); fetchHistory(); resetForm(); } 
-            else { alert("Error: " + res.error.message); }
-            btn.innerHTML = originalText;
+            const id = document.getElementById('editingId').value;
+            
+            try {
+                if (id) {
+                    // MODE EDIT (Harus Online)
+                    if (!navigator.onLine) {
+                        alert("⚠️ Anda sedang offline. Mengedit data lama membutuhkan koneksi internet.");
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                        return;
+                    }
+                    const { error } = await sbClient.from('toolbox_reports').update(payload).eq('id', id);
+                    if (error) throw error;
+                    alert("✅ Data Updated Successfully!");
+                } else {
+                    // MODE ENTRY BARU (Integrasi Offline Manager)
+                    const isSuccess = await window.HexindoFleet.submitData('toolbox_reports', payload);
+                    
+                    // Catat aktivitas
+                    window.HexindoFleet.submitData('activity_logs', {
+                        nik: userNik,
+                        activity: "Toolbox Checklist",
+                        details: `Date: ${payload.check_date}`
+                    });
+
+                    if (isSuccess) {
+                        alert("✅ DATA SYNCED TO SERVER!");
+                    } else {
+                        alert("⚠️ OFFLINE MODE: Data disimpan di antrean HP. Akan dikirim otomatis saat sinyal kembali.");
+                    }
+                }
+                
+                closeAllDrawers(); 
+                fetchHistory(); 
+                resetForm();
+
+            } catch (err) {
+                alert("System Error: " + err.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         };
 
         window.fetchHistory = async () => {
@@ -489,6 +538,7 @@
 
         window.onload = () => App.init();
     </script>
+    <script src="../js/offline-manager.js"></script>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

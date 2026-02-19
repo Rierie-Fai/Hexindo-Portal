@@ -215,35 +215,35 @@ class HexindoOfflineManager {
         }
     }
 
-    handleConnectionChange(isOnline) {
+        handleConnectionChange(isOnline) {
         const badge = document.getElementById('hexindo-status-badge');
         
         if (isOnline) {
-            badge.className = 'fixed top-4 right-4 px-3 py-1 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50';
+            badge.className = 'fixed bottom-4 left-4 px-3 py-1 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50';
             badge.innerHTML = '<i class="fas fa-wifi"></i> SYSTEM ONLINE';
             this.syncData(); // Trigger sync
         } else {
-            badge.className = 'fixed top-4 right-4 px-3 py-1 rounded-full border border-red-500/50 bg-red-500/10 text-red-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50';
+            badge.className = 'fixed bottom-4 left-4 px-3 py-1 rounded-full border border-red-500/50 bg-red-500/10 text-red-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50';
             badge.innerHTML = '<i class="fas fa-plane"></i> OFFLINE MODE';
             this.showToast('Koneksi Terputus. Mode Offline Aktif.', 'warning');
         }
     }
 
-    initUI() {
+        initUI() {
         // Hapus elemen lama jika ada (biar gak duplikat)
         const oldBadge = document.getElementById('hexindo-status-badge');
         if (oldBadge) oldBadge.remove();
         const oldToast = document.getElementById('hexindo-toast');
         if (oldToast) oldToast.remove();
 
-        // 1. Buat Status Badge (Pojok Kanan Atas)
+        // 1. Buat Status Badge (Pojok Kiri Bawah)
         const badge = document.createElement('div');
         badge.id = 'hexindo-status-badge';
         // Default state (Cek saat init)
         const isOnline = navigator.onLine;
         badge.className = isOnline 
-            ? 'fixed top-4 right-4 px-3 py-1 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50'
-            : 'fixed top-4 right-4 px-3 py-1 rounded-full border border-red-500/50 bg-red-500/10 text-red-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-50';
+            ? 'fixed bottom-4 left-4 px-3 py-1 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-[9999]'
+            : 'fixed bottom-4 left-4 px-3 py-1 rounded-full border border-red-500/50 bg-red-500/10 text-red-400 text-xs font-rajdhani font-bold backdrop-blur-md transition-all z-[9999]';
         badge.innerHTML = isOnline ? '<i class="fas fa-wifi"></i> SYSTEM ONLINE' : '<i class="fas fa-plane"></i> OFFLINE MODE';
         document.body.appendChild(badge);
 
@@ -253,6 +253,7 @@ class HexindoOfflineManager {
         toast.className = 'fixed bottom-10 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg border backdrop-blur-xl text-sm font-rajdhani font-semibold transition-all duration-300 opacity-0 translate-y-10 z-[100] shadow-[0_0_20px_rgba(0,0,0,0.5)] pointer-events-none';
         document.body.appendChild(toast);
     }
+
 
     showToast(msg, type = 'info') {
         const toast = document.getElementById('hexindo-toast');

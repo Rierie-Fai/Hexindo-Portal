@@ -362,7 +362,7 @@
             addDetailRow(lastTime, "");
         }
 
-        async function submitLog() {
+                async function submitLog() {
             const dateVal = document.getElementById('dateInp').value;
             const details = Array.from(document.querySelectorAll('#detailRowsContainer > div')).map(row => {
                 const t = row.querySelectorAll('input[type="time"]');
@@ -383,36 +383,72 @@
                 sn: document.getElementById('snInp').value.toUpperCase(),
                 hm: document.getElementById('hmInp').value, 
                 job: document.getElementById('jobDescInp').value.toUpperCase(),
-                isSynced: false, detailData: details
+                isSynced: navigator.onLine, // Anggap synced jika ada internet
+                detailData: details
             };
 
+            // 1. Simpan ke LocalStorage agar langsung muncul di Tabel (UI)
             let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
             isEditMode ? logs = logs.map(l => l.id === logEntry.id ? logEntry : l) : logs.push(logEntry);
             localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
-            
-            sb.from('activity_logs').insert([{
-                nik: userNik, activity: isEditMode ? "Updated Activity Report" : "New Activity Report",
-                details: `${logEntry.customer} - ${logEntry.model}`
-            }]);
 
-            clearForm(); refreshTable(); 
+            // 2. INTEGRASI OFFLINE MANAGER (Auto-Kirim / Masuk Antrean)
+            const payloadTechLogs = {
+                id: logEntry.id,
+                nik: userNik,
+                log_data: logEntry
+            };
+
+            window.HexindoFleet.submitData('tech_logs', payloadTechLogs).then(isSuccess => {
+                if (isSuccess) {
+                    // Jika sukses terkirim, update status di lokal jadi biru (Synced)
+                    let currentLogs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+                    currentLogs = currentLogs.map(l => l.id === logEntry.id ? { ...l, isSynced: true } : l);
+                    localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(currentLogs));
+                    refreshTable();
+                }
+            });
+
+            // Kirim rekam jejak aktivitas (log)
+            window.HexindoFleet.submitData('activity_logs', {
+                nik: userNik, 
+                activity: isEditMode ? "Updated Activity Report" : "New Activity Report",
+                details: `${logEntry.customer} - ${logEntry.model}`
+            });
+
+            clearForm(); 
+            refreshTable(); 
         }
+
 
         // --- CLOUD OPS ---
-        async function syncToCloud() {
+                async function syncToCloud() {
+            if (!navigator.onLine) {
+                return alert("Anda sedang offline. Data akan otomatis terkirim saat sinyal kembali.");
+            }
+
             const btn = document.getElementById('btnSyncSmall');
             const originalText = btn.innerHTML;
-            let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
-            if (logs.length === 0) return alert("No data to sync.");
-            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Pushing...`; btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Pushing...`; 
+            btn.disabled = true;
+
             try {
-                const payload = logs.map(l => ({ id: l.id, nik: userNik, log_data: { ...l, isSynced: true } }));
-                const { error } = await sb.from('tech_logs').upsert(payload);
-                if (error) throw error;
+                // Paksa offline manager untuk memproses antrean data
+                await window.HexindoFleet.syncData();
+                
+                // Ubah semua status lokal jadi biru (Synced)
+                let logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
                 localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs.map(l => ({ ...l, isSynced: true }))));
-                refreshTable(); alert("✅ Sync Success!");
-            } catch (err) { alert("Sync Failed: " + err.message); } finally { btn.innerHTML = originalText; btn.disabled = false; }
+                refreshTable();
+                
+            } catch (err) { 
+                console.error("Manual sync error", err);
+            } finally { 
+                btn.innerHTML = originalText; 
+                btn.disabled = false; 
+            }
         }
+
 
         async function pullFromCloud() {
             const btn = document.getElementById('btnPull');
@@ -550,6 +586,8 @@
 
         window.onload = () => App.init();
     </script>
+    <script src="../js/offline-manager.js"></script>
+
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

@@ -324,52 +324,66 @@
                 target.className = "worn-output " + (res >= 100 ? "worn-danger" : res >= 75 ? "worn-warning" : "text-emerald-500");
             },
 
-            async syncToCloud() {
+                            async syncToCloud() {
                 const btn = document.getElementById('btnSync');
                 const originalText = btn.innerHTML;
-                btn.innerHTML = `<span><i class="fas fa-spinner fa-spin mr-2"></i>SYNCING...</span>`;
+                btn.innerHTML = `<span><i class="fas fa-spinner fa-spin mr-2"></i>PROCESSING...</span>`;
                 btn.disabled = true;
                 
                 const unit = document.getElementById('unitSN').value.toUpperCase();
-                if(!unit) { alert("Please input Unit Serial Number"); btn.innerHTML = originalText; btn.disabled = false; return; }
+                if(!unit) { 
+                    alert("Please input Unit Serial Number"); 
+                    btn.innerHTML = originalText; 
+                    btn.disabled = false; 
+                    return; 
+                }
 
+                // 1. Siapkan payload data laporan
                 const payload = {
                     nik: MY_NIK,
                     unit_no: unit,
                     inspection_date: document.getElementById('inspDate').value,
                     report_data: {
                         measurements: itemsRaw.map((_, i) => ({ 
-                            lh: document.getElementById(`l_${i}`).value, 
-                            rh: document.getElementById(`r_${i}`).value 
+                            lh: document.getElementById(`l_${i}`) ? document.getElementById(`l_${i}`).value : '', 
+                            rh: document.getElementById(`r_${i}`) ? document.getElementById(`r_${i}`).value : '' 
                         })),
                         comments: document.getElementById('commentInp').value
                     }
                 };
                 
                 try {
-                    const { error } = await sb.from('uc_reports').insert([payload]);
-                    if (error) throw error;
+                    // 2. INTEGRASI OFFLINE MANAGER: Kirim ke server (jika online) atau simpan ke antrean (jika offline)
+                    const isSuccess = await window.HexindoFleet.submitData('uc_reports', payload);
 
-                    await sb.from('activity_logs').insert([{
-                        nik: MY_NIK, activity: "UC Inspection Report", details: `Unit: ${unit}`
-                    }]);
+                    // Kirim log aktivitas menggunakan offline manager juga
+                    window.HexindoFleet.submitData('activity_logs', {
+                        nik: MY_NIK, 
+                        activity: "UC Inspection Report", 
+                        details: `Unit: ${unit}`
+                    });
 
-                    alert("✅ REPORT SUBMITTED!"); 
-                    // Clear inputs
+                    if (isSuccess) {
+                        alert("✅ REPORT SUBMITTED TO SERVER!"); 
+                    } else {
+                        alert("⚠️ OFFLINE MODE: Report saved to device. Will sync automatically when signal returns.");
+                    }
+
+                    // 3. Bersihkan input form
                     document.querySelectorAll('input[type="number"]').forEach(i => i.value = '');
-                    document.querySelectorAll('.worn-output').forEach(s => s.innerText = '-');
+                    document.querySelectorAll('.worn-output').forEach(s => { s.innerText = '-'; s.className = 'worn-output'; });
                     document.getElementById('unitSN').value = '';
+                    document.getElementById('commentInp').value = '';
                     
                     if(document.getElementById('rightDrawer').classList.contains('open')) App.fetchHistory();
 
                 } catch (err) {
-                    alert("Sync Error: " + err.message);
+                    alert("System Error: " + err.message);
                 } finally {
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
             },
-
             async fetchHistory() {
                 const container = document.getElementById('historyBody');
                 container.innerHTML = '<div class="text-center py-10 text-slate-400 text-[10px] font-bold uppercase tracking-widest"><i class="fas fa-circle-notch fa-spin mr-2"></i>Loading Archives...</div>';
@@ -438,6 +452,8 @@
 
         window.onload = () => App.init();
     </script>
+    <script src="../js/offline-manager.js"></script>
+
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
